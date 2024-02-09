@@ -438,7 +438,8 @@ def gen_random_config():
   
   return get_config(parameters)
 
-config_file = gen_random_config()
-f = open("random-config.yaml", "w")
-f.write(config_file)
-f.close()
+if __name__ == "__main__":
+  config_file = gen_random_config()
+  f = open("random-config.yaml", "w")
+  f.write(config_file)
+  f.close()

@@ -4,8 +4,8 @@ import pandas as pd
 import dispatch_simeng
 
 BATCH_SIZE = int(sys.argv[1])
-DB_NAME = sys.argv[2]
-
+PATH = dispatch_simeng.PATH
+DB_NAME = os.path.join(PATH, sys.argv[2])
 
 def get_inputs(index):
     parameters = {
@@ -41,7 +41,7 @@ def get_inputs(index):
         "Permitted-Stores-Per-Cycle" : -1
     }
 
-    config = open('config-buffer/config-' + str(index) + '.yaml')
+    config = open(os.path.join(PATH, 'config-buffer', 'config-' + str(index) + '.yaml'))
     for i in config.readlines():
         for j in parameters:
             if j + ":" in i:
@@ -69,7 +69,7 @@ def get_results(index, benchmark):
         benchmark + "_rename_sqStalls" : -1,
         benchmark + "_retired" : -1
     }
-    result_file_name = os.path.join("results-buffer", benchmark, "results-" + str(index) + ".txt")
+    result_file_name = os.path.join(PATH, "results-buffer", benchmark, "results-" + str(index) + ".txt")
     result_file = open(result_file_name)
     for i in result_file.readlines():
         for j in results:

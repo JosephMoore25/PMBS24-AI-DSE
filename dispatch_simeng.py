@@ -10,7 +10,7 @@ except:
     print("Invalid argument: supply the index within the batch as an int")
     exit()
 
-PATH = "/Users/jmoore/simeng-parameter-study"
+PATH = "/home/br-jmoore/simeng-parameter-study"
 HOME = os.path.expanduser("~")
 minibude_binary_path = os.path.join(HOME, "simeng-benchmarks/binaries/miniBUDE/openmp/bude-armclang20.0-armv8.4-a+sve")
 minibude_data_path = os.path.join(HOME, "miniBUDE/data/bm1/")

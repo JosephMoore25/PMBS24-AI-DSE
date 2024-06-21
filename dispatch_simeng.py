@@ -29,7 +29,7 @@ minisweep_binary_path = os.path.join(BENCHMARK_PATH_BASE, "minisweep/minisweep-o
 
 BENCHMARKS = {
     "minibude" : [minibude_binary_path, "-n", "64", "-i", "1", "--deck", minibude_data_path],
-    "stream" : [stream_binary_path]
+    "stream" : [stream_binary_path],
     "cloverleaf": [cloverleaf_binary_path, cloverleaf_data_path],
     "tealeaf": [tealeaf_binary_path],
     "minisweep": [minisweep_binary_path, "--ncell_x", "4", "--ncell_y", "4", "--ncell_z", \

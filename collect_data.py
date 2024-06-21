@@ -85,25 +85,27 @@ def get_results(index, benchmark):
 columns = []
 data = []
 
-for i in range(BATCH_SIZE):
-    parameters = get_inputs(i)
-    if (i == 0):
-        for j in parameters:
-            columns.append(j)
+#for i in range(BATCH_SIZE):
+#    parameters = get_inputs(i)
+#    if (i == 0):
+#        for j in parameters:
+#            columns.append(j)
+#
+#    temp_data = []
+#    for j in parameters:
+#        temp_data.append(parameters[j])
+#
+#    for benchmark in dispatch_simeng.BENCHMARKS:
+#        results = get_results(i, benchmark)
+#        for j in results:
+#            temp_data.append(results[j])
+#            if (i == 0):
+#                columns.append(j)
+#
+#
+#data.append(temp_data)
 
-    temp_data = []
-    for j in parameters:
-        temp_data.append(parameters[j])
 
-    for benchmark in dispatch_simeng.BENCHMARKS:
-        results = get_results(i, benchmark)
-        for j in results:
-            temp_data.append(results[j])
-            if (i == 0):
-                columns.append(j)
-
-
-data.append(temp_data)
 parameters = get_inputs(RUN_INDEX)
 for j in parameters:
     columns.append(j)

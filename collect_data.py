@@ -3,7 +3,8 @@ import os
 import pandas as pd
 import dispatch_simeng
 
-BATCH_SIZE = int(sys.argv[1])
+#BATCH_SIZE = int(sys.argv[1])
+RUN_INDEX = int(sys.argv[1])
 PATH = dispatch_simeng.PATH
 DB_NAME = os.path.join(PATH, sys.argv[2])
 
@@ -102,8 +103,21 @@ for i in range(BATCH_SIZE):
                 columns.append(j)
 
 
-    data.append(temp_data)
+data.append(temp_data)
+parameters = get_inputs(RUN_INDEX)
+for j in parameters:
+    columns.append(j)
+temp_data = []
+for j in parameters:
+    temp_data.append(parameters[j])
 
+for benchmark in dispatch_simeng.BENCHMARKS:
+    results = get_results(RUN_INDEX, benchmark)
+    for j in results:
+        temp_data.append(results[j])
+        columns.append(j)
+        
+data.append(temp_data)
 
 df = pd.DataFrame(data, columns=columns)
 

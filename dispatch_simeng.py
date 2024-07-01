@@ -2,6 +2,9 @@ import os
 import subprocess
 import sys
 import config_generator as generator
+import psutil
+import signal
+import time
 
 try:
     BATCH_ID = int(sys.argv[1])
@@ -37,6 +40,17 @@ BENCHMARKS = {
                     "1", "--nthread_e", "1"]
 }
 
+# Function to check memory usage of a given PID
+def check_memory(pid, threshold_kb):
+    try:
+        process = psutil.Process(pid)
+        mem_usage = process.memory_info().rss / 1024  # Memory usage in KB
+        if mem_usage > threshold_kb:
+            print(f"Process {pid} is using too much memory: {mem_usage} KB")
+            return True
+        return False
+    except (psutil.NoSuchProcess, psutil.AccessDenied):
+        return False
 
 def generate_batch():
     config_file = generator.gen_random_config()
@@ -56,7 +70,19 @@ def dispatch_batch():
         config_dest = os.path.join(PATH, "config-buffer", "config-%d.yaml" % BATCH_ID)
         output_file = os.path.join(PATH, "results-buffer", i, "results-" + str(BATCH_ID) + ".txt")
         f = open(output_file, "w")
-        subprocess.call(["simeng", config_dest] + BENCHMARKS[i], stdout=f)
+
+        process = subprocess.Popen(["simeng", config_dest] + BENCHMARKS[i], shell=True, stdout=f)
+        while process.poll() is None:
+            #Give 1GB headroom per simeng
+            if check_memory(process.pid, 1024*1024):
+                os.kill(process.pid, signal.SIGKILL)
+                print(f"Killed process {process.pid} due to memory leak")
+                print("This process had config: ")
+                subprocess.call(["cat", config_dest])
+                break
+            time.sleep(1)  # Check every second
+            
+        #subprocess.call(["simeng", config_dest] + BENCHMARKS[i], stdout=f)
 
 if __name__ == "__main__":
     if not os.path.isdir(os.path.join(PATH, "config-buffer")):

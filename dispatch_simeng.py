@@ -8,7 +8,7 @@ import time
 
 try:
     BATCH_ID = int(sys.argv[1])
-    print("Batch ID = " + str(BATCH_ID))
+    #print("Batch ID = " + str(BATCH_ID))
 except:
     print("Invalid argument: supply the index within the batch as an int")
     exit()
@@ -61,7 +61,7 @@ def generate_batch():
 
 def dispatch_batch():
     #print("TEST")
-    print(BENCHMARKS)
+    #print(BENCHMARKS)
     for i in BENCHMARKS:
         #Create directories if needed
         if not os.path.isdir(os.path.join(PATH, "results-buffer", i)):
@@ -71,7 +71,7 @@ def dispatch_batch():
         output_file = os.path.join(PATH, "results-buffer", i, "results-" + str(BATCH_ID) + ".txt")
         f = open(output_file, "w")
 
-        process = subprocess.Popen(["simeng", config_dest] + BENCHMARKS[i], shell=True, stdout=f)
+        process = subprocess.Popen(["simeng", config_dest] + BENCHMARKS[i], stdout=f)
         while process.poll() is None:
             #Give 1GB headroom per simeng
             if check_memory(process.pid, 1024*1024):

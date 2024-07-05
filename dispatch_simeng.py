@@ -6,6 +6,8 @@ import psutil
 import signal
 import time
 
+USING_SST = True
+
 try:
     BATCH_ID = int(sys.argv[1])
     #print("Batch ID = " + str(BATCH_ID))
@@ -60,8 +62,6 @@ def generate_batch():
     f.close()
 
 def dispatch_batch():
-    #print("TEST")
-    #print(BENCHMARKS)
     for i in BENCHMARKS:
         #Create directories if needed
         if not os.path.isdir(os.path.join(PATH, "results-buffer", i)):
@@ -70,8 +70,12 @@ def dispatch_batch():
         config_dest = os.path.join(PATH, "config-buffer", "config-%d.yaml" % BATCH_ID)
         output_file = os.path.join(PATH, "results-buffer", i, "results-" + str(BATCH_ID) + ".txt")
         f = open(output_file, "w")
-
-        process = subprocess.Popen(["simeng", config_dest] + BENCHMARKS[i], stdout=f)
+        if (not USING_SST):
+            process = subprocess.Popen(["simeng", config_dest] + BENCHMARKS[i], stdout=f)
+        else:
+            sst_params = generator.gen_sst()
+            process = subprocess.Popen(["sst", "sst-config.py", 
+            "--simeng_config", config_dest], stdout=f)
         while process.poll() is None:
             #Give 1GB headroom per simeng
             if check_memory(process.pid, 1024*1024):

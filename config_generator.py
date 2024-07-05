@@ -42,7 +42,7 @@ Branch-Predictor:
   Global-History-Length: 19
   RAS-entries: 8
 L1-Data-Memory:
-  Interface-Type: Fixed
+  Interface-Type: External
 L1-Instruction-Memory:
   Interface-Type: Flat
 LSQ-L1-Interface:
@@ -422,7 +422,7 @@ def gen_random_config():
       "Load" : random.choice([i for i in range(4, 512, 4)]),
       "Store" : random.choice([i for i in range(4, 512, 4)]),
   #LSQ L1 Interface
-      "Access-Latency" : 5,#random.choice([5]),
+      "Access-Latency" : random.choice([i for i in range(1, 10)]), #5,#random.choice([5]),
       "Load-Bandwidth" : random.choice([2**i for i in range(4, 10+1)]), #16 - 1024
       "Store-Bandwidth" : random.choice([2**i for i in range(4, 10+1)]), #16 - 1024
       "Permitted-Requests-Per-Cycle" : random.choice([i for i in range(1, 32+1)]),
@@ -436,13 +436,13 @@ def gen_random_config():
   while (parameters["Store-Bandwidth"] < max(parameters["Vector-Length"], parameters["Streaming-Vector-Length"])/8):
     parameters["Store-Bandwidth"] = random.choice([2**i for i in range(0, 10+1)])
   
-  return get_config(parameters)
+  return get_config(parameters), parameters
 
-def gen_sst():
+def gen_sst(original_parameters):
   parameters = {
     "clw" : random.choice([2**i for i in range(5, 10)]), #Between 32-512
     "core_clock" : 2,
-    "l1_latency" : random.choice([i for i in range(1, 10)]),
+    "l1_latency" : original_parameters["Access-Latency"], #random.choice([i for i in range(1, 10)]),
     "l1_clock" : random.choice([i for i in range(0.5, 5, 0.5)]),
     "l1_associativity" : random.choice([2**i for i in range(0, 5)]), #Up to 16
     "l1_size" : random.choice([2**i for i in range(0, 12)]), #Up to 1KiB - 2MiB L1
@@ -461,8 +461,8 @@ def gen_sst():
 
   return parameters
 
-if __name__ == "__main__":
-  config_file = gen_random_config()
-  f = open("random-config.yaml", "w")
-  f.write(config_file)
-  f.close()
+#if __name__ == "__main__":
+#  config_file, = gen_random_config()
+#  f = open("random-config.yaml", "w")
+#  f.write(config_file)
+#  f.close()

@@ -3,22 +3,22 @@ import sys
 import argparse
 
 parser = argparse.ArgumentParser()
-parser.add_argument("simeng_config") # Path to yaml config file
-parser.add_argument("bin_path") # Path to executable binary
-parser.add_argument("bin_args") # Args for executable binary
-parser.add_argument("clw") # In bytes, original 64
-parser.add_argument("core_clock") # In GHz, match core
-parser.add_argument("l1_latency") # In cycles, original 4
-parser.add_argument("l1_clock") # In GHz, original 2
-parser.add_argument("l1_associativity") # Original 4
-parser.add_argument("l1_size") # In KiB, original 1
-parser.add_argument("l2_latency") # In cycles, original 10
-parser.add_argument("l2_clock") # In GHz, original 1.8
-parser.add_argument("l2_associativity") # Original 8
-parser.add_argument("l2_size") # In KiB, original 16
-parser.add_argument("ram_timing") # In ns, original 100
-parser.add_argument("ram_clock") # In GHz, original 1
-parser.add_argument("ram_size") # In GiB, original 8
+parser.add_argument("--simeng_config") # Path to yaml config file
+parser.add_argument("--bin_path") # Path to executable binary
+parser.add_argument("--bin_args") # Args for executable binary
+parser.add_argument("--clw") # In bytes, original 64
+parser.add_argument("--core_clock") # In GHz, match core
+parser.add_argument("--l1_latency") # In cycles, original 4
+parser.add_argument("--l1_clock") # In GHz, original 2
+parser.add_argument("--l1_associativity") # Original 4
+parser.add_argument("--l1_size") # In KiB, original 1
+parser.add_argument("--l2_latency") # In cycles, original 10
+parser.add_argument("--l2_clock") # In GHz, original 1.8
+parser.add_argument("--l2_associativity") # Original 8
+parser.add_argument("--l2_size") # In KiB, original 16
+parser.add_argument("--ram_timing") # In ns, original 100
+parser.add_argument("--ram_clock") # In GHz, original 1
+parser.add_argument("--ram_size") # In GiB, original 8
 args = parser.parse_args()
 
 # Define the simulation components

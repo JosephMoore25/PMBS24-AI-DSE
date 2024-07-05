@@ -443,21 +443,21 @@ def gen_sst(original_parameters):
     "clw" : random.choice([2**i for i in range(5, 10)]), #Between 32-512
     "core_clock" : 2,
     "l1_latency" : original_parameters["Access-Latency"], #random.choice([i for i in range(1, 10)]),
-    "l1_clock" : random.choice([i for i in range(0.5, 5, 0.5)]),
+    "l1_clock" : random.choice([i/2 for i in range(1,10)]),
     "l1_associativity" : random.choice([2**i for i in range(0, 5)]), #Up to 16
     "l1_size" : random.choice([2**i for i in range(0, 12)]), #Up to 1KiB - 2MiB L1
-    "l2_latency" : random.choice([i from i in range(6, 50)]),
-    "l2_clock" : random.choice([i for i in range(0.5, 5, 0.5)]),
+    "l2_latency" : random.choice([i for i in range(6, 50)]),
+    "l2_clock" : random.choice([i/2 for i in range(1, 10)]),
     "l2_associativity" : random.choice([2**i for i in range(0, 5)]), #Up to 16
     "l2_size" : random.choice([2**i for i in range(5, 17)]), #32KiB - 64MiB L2
     "ram_timing" : random.choice([i*10 for i in range(4, 260)]), #40-250ns
-    "ram_clock" : random.choice([i for i in range(0.5, 5, 0.5)]),
+    "ram_clock" : random.choice([i/2 for i in range(1, 10)]),
     "ram_size" : 8
   }
   while (parameters["l2_size"] < parameters["l1_size"]):
     parameters["l2_size"] = random.choice([2**i for i in range(5, 17)])
   while (parameters["l2_latency"] <= parameters["l1_latency"]):
-    parameters["l2_latency"] = random.choice([i from i in range(6, 50)])
+    parameters["l2_latency"] = random.choice([i for i in range(6, 50)])
 
   return parameters
 

@@ -75,27 +75,31 @@ def dispatch_batch(sst_params):
         if (not USING_SST):
             process = subprocess.Popen(["simeng", config_dest] + BENCHMARKS[i], stdout=f)
         else:
-            sst_params = generator.gen_sst()
-            process = subprocess.Popen(["sst", "sst-config.py", 
-            "--model-options", "\'--simeng_config", config_dest,
+            print(sst_params)
+            #sst_params = generator.gen_sst()
+            model_options = " ".join([
+                "--simeng_config", config_dest,
             "--bin_path", BENCHMARKS[i][0],
-            "--bin_args", "\"" + " ".join(BENCHMARKS[i][1:]) + "\"",
-            "--clw", sst_params.clw,
-            "--core_clock", sst_params.core_clock,
-            "--l1_latency", sst_params.l1_latency,
-            "--l1_clock", sst_params.l1_clock,
-            "--l1_associativity", sst_params.l1_associativity,
-            "--l1_size", sst_params.l1_size,
-            "--l2_latency", sst_params.l2_latency,
-            "--l2_clock", sst_params.l2_clock,
-            "--l2_associativity", sst_params.l2_associativity,
-            "--l2_size", sst_params.l2_size,
-            "--ram_timing", sst_params.ram_timing,
-            "--ram_clock", sst_params.ram_clock,
-            "--ram_size", sst_params.ram_size + "\'"], stdout=f)
+            "--bin_args", f"\"{' '.join(BENCHMARKS[i][1:])}\"",
+            "--clw", str(sst_params["clw"]),
+            "--core_clock", str(sst_params["core_clock"]),
+            "--l1_latency", str(sst_params["l1_latency"]),
+            "--l1_clock", str(sst_params["l1_clock"]),
+            "--l1_associativity", str(sst_params["l1_associativity"]),
+            "--l1_size", str(sst_params["l1_size"]),
+            "--l2_latency", str(sst_params["l2_latency"]),
+            "--l2_clock", str(sst_params["l2_clock"]),
+            "--l2_associativity", str(sst_params["l2_associativity"]),
+            "--l2_size", str(sst_params["l2_size"]),
+            "--ram_timing", str(sst_params["ram_timing"]),
+            "--ram_clock", str(sst_params["ram_clock"]),
+            "--ram_size", str(sst_params["ram_size"])])
+
+            process = subprocess.Popen(["sst", "sst-config.py", 
+            "--model-options", model_options], stdout=f)
         while process.poll() is None:
-            #Give 1GB headroom per simeng
-            if check_memory(process.pid, 1024*1024):
+            #Give 4GB headroom per simeng
+            if check_memory(process.pid, 4*1024*1024):
                 os.kill(process.pid, signal.SIGKILL)
                 print(f"Killed process {process.pid} due to memory leak")
                 print("This process had config: ")

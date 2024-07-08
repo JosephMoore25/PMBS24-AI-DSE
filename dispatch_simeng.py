@@ -97,29 +97,14 @@ def dispatch_batch(sst_params):
             "--ram_size", str(sst_params["ram_size"])])
 
             model_options = f"""sst sst-config.py --model-options 
-            '--simeng_config {config_dest}
-            --bin_path {BENCHMARKS[i][0]}
-            --bin_args "{' '.join(BENCHMARKS[i][1:])}" 
-            --clw {sst_params["clw"]} 
-            --core_clock {sst_params["core_clock"]} 
-            --l1_latency {sst_params["l1_latency"]} 
-            --l1_clock {sst_params["l1_clock"]} 
-            --l1_associativity {sst_params["l1_associativity"]} 
-            --l1_size {sst_params["l1_size"]} 
-            --l2_latency {sst_params["l2_latency"]} 
-            --l2_clock {sst_params["l2_clock"]}
-            --l2_associativity {sst_params["l2_associativity"]} 
-            --l2_size {sst_params["l2_size"]} 
-            --ram_timing {sst_params["ram_timing"]} 
-            --ram_clock {sst_params["ram_clock"]}
-            --ram_size {sst_params["ram_size"]}'"""
+            '--simeng_config {config_dest} --bin_path {BENCHMARKS[i][0]} --bin_args "{' '.join(BENCHMARKS[i][1:])}"  --clw {sst_params["clw"]}  --core_clock {sst_params["core_clock"]}  --l1_latency {sst_params["l1_latency"]}  --l1_clock {sst_params["l1_clock"]}  --l1_associativity {sst_params["l1_associativity"]}  --l1_size {sst_params["l1_size"]}  --l2_latency {sst_params["l2_latency"]}  --l2_clock {sst_params["l2_clock"]} --l2_associativity {sst_params["l2_associativity"]}  --l2_size {sst_params["l2_size"]}  --ram_timing {sst_params["ram_timing"]}  --ram_clock {sst_params["ram_clock"]} --ram_size {sst_params["ram_size"]}'"""
 
             model_options = shlex.split(model_options)
 
             #process = subprocess.Popen(["sst", "sst-config.py", 
             #"--model-options", model_options], stdout=f)
             process = subprocess.Popen(model_options, stdout=f)
-            
+
         while process.poll() is None:
             #Give 4GB headroom per simeng
             if check_memory(process.pid, 4*1024*1024):

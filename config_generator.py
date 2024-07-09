@@ -5,14 +5,12 @@ ENABLE_SME = False
 
 
 def get_config(parameters):
-  config_file = f"""# The following resources where utilised to create the config file and naming schemes:
-# https://github.com/fujitsu/A64FX
-
+  config_file = f"""
 Core:
   ISA: AArch64
   Simulation-Mode: outoforder
-  Clock-Frequency-GHz: 1.8
-  Timer-Frequency-MHz: 100
+  Clock-Frequency-GHz: 2.5
+  Timer-Frequency-MHz: 200
   Micro-Operations: True
   Vector-Length: {parameters["Vector-Length"]}
   {f'Streaming-Vector-Length: {parameters["Streaming-Vector-Length"]}' if ENABLE_SME else ""}
@@ -47,7 +45,7 @@ L1-Instruction-Memory:
   Interface-Type: Flat
 LSQ-L1-Interface:
   Access-Latency: {parameters["Access-Latency"]}
-  Exclusive: True
+  Exclusive: False
   Load-Bandwidth: {parameters["Load-Bandwidth"]}
   Store-Bandwidth: {parameters["Store-Bandwidth"]}
   Permitted-Requests-Per-Cycle: {parameters["Permitted-Requests-Per-Cycle"]}
@@ -55,130 +53,62 @@ LSQ-L1-Interface:
   Permitted-Stores-Per-Cycle: {parameters["Permitted-Stores-Per-Cycle"]}
 Ports:
   0:
-    Portname: FLA
-    Instruction-Support:
+    Portname: Port 0
+    Instruction-Group-Support:
+    - INT_SIMPLE
+    - INT_MUL
     - FP
     - SVE
   1:
-    Portname: PR
-    Instruction-Support:
-    - PREDICATE
+    Portname: Port 1
+    Instruction-Group-Support:
+    - INT
+    - FP
+    - SVE
   2:
-    Portname: EXA
-    Instruction-Support:
+    Portname: Port 2
+    Instruction-Group-Support:
     - INT_SIMPLE
     - INT_MUL
-    - STORE_DATA
-  3:
-    Portname: FLB
-    Instruction-Support:
-    - FP_SIMPLE
-    - FP_MUL
-    - SVE_SIMPLE
-    - SVE_MUL
-  4:
-    Portname: EXB
-    Instruction-Support:
-    - INT_SIMPLE
-    - INT_DIV_OR_SQRT
-  5:
-    Portname: EAGA
-    Instruction-Support:
-    - LOAD
-    - STORE_ADDRESS
-    - INT_SIMPLE_ARTH_NOSHIFT
-    - INT_SIMPLE_LOGICAL_NOSHIFT
-    - INT_SIMPLE_CMP
-  6:
-    Portname: EAGB
-    Instruction-Support:
-    - LOAD
-    - STORE_ADDRESS
-    - INT_SIMPLE_ARTH_NOSHIFT
-    - INT_SIMPLE_LOGICAL_NOSHIFT
-    - INT_SIMPLE_CMP
-  7:
-    Portname: BR
-    Instruction-Support:
     - BRANCH
+  3:
+    Portname: Port 4
+    Instruction-Group-Support:
+    - LOAD
+    - STORE_ADDRESS
+  4:
+    Portname: Port 5
+    Instruction-Group-Support:
+    - LOAD
+    - STORE_ADDRESS
+  5:
+    Portname: Port 3
+    Instruction-Group-Support:
+    - STORE_DATA
 Reservation-Stations:
   0:
-    Size: 20
-    Dispatch-Rate: 2
+    Size: 60
+    Dispatch-Rate: 4
     Ports:
-    - FLA
-    - PR
-    - EXA
-  1:
-    Size: 20
-    Dispatch-Rate: 2
-    Ports:
-    - FLB
-    - EXB
-  2:
-    Size: 10
-    Dispatch-Rate: 1
-    Ports:
-    - EAGA
-  3:
-    Size: 10
-    Dispatch-Rate: 1
-    Ports:
-    - EAGB
-  4:
-    Size: 19
-    Dispatch-Rate: 1
-    Ports:
-    - BR
+    - Port 0
+    - Port 1
+    - Port 2
+    - Port 4
+    - Port 5
+    - Port 3
 Execution-Units:
   0:
     Pipelined: True
-    Blocking-Groups:
-    - INT_DIV_OR_SQRT
-    - FP_DIV_OR_SQRT
-    - SVE_DIV_OR_SQRT
   1:
     Pipelined: True
-    Blocking-Groups:
-    - INT_DIV_OR_SQRT
-    - FP_DIV_OR_SQRT
-    - SVE_DIV_OR_SQRT
   2:
     Pipelined: True
-    Blocking-Groups:
-    - INT_DIV_OR_SQRT
-    - FP_DIV_OR_SQRT
-    - SVE_DIV_OR_SQRT
   3:
     Pipelined: True
-    Blocking-Groups:
-    - INT_DIV_OR_SQRT
-    - FP_DIV_OR_SQRT
-    - SVE_DIV_OR_SQRT
   4:
     Pipelined: True
-    Blocking-Groups:
-    - INT_DIV_OR_SQRT
-    - FP_DIV_OR_SQRT
-    - SVE_DIV_OR_SQRT
   5:
     Pipelined: True
-    Blocking-Groups:
-    - INT_DIV_OR_SQRT
-    - FP_DIV_OR_SQRT
-    - SVE_DIV_OR_SQRT
-  6:
-    Pipelined: True
-    Blocking-Groups:
-    - INT_DIV_OR_SQRT
-    - FP_DIV_OR_SQRT
-    - SVE_DIV_OR_SQRT
-  7:
-    Pipelined: True
-    Blocking-Groups:
-    - INT_DIV_OR_SQRT
-    - FP_DIV_OR_SQRT
-    - SVE_DIV_OR_SQRT
 Latencies:
   0:
     Instruction-Groups:
@@ -200,8 +130,8 @@ Latencies:
   3:
     Instruction-Groups:
     - INT_DIV_OR_SQRT
-    Execution-Latency: 41
-    Execution-Throughput: 41
+    Execution-Latency: 39
+    Execution-Throughput: 39
   4:
     Instruction-Groups:
     - SCALAR_SIMPLE
@@ -214,8 +144,8 @@ Latencies:
   5:
     Instruction-Groups:
     - FP_DIV_OR_SQRT
-    Execution-Latency: 29
-    Execution-Throughput: 29
+    Execution-Latency: 16
+    Execution-Throughput: 16
   6:
     Instruction-Groups:
     - VECTOR_SIMPLE
@@ -255,19 +185,19 @@ CPU-Info:
   # (Not generating the special files directory may require the user to copy over files manually)
   Generate-Special-Dir: False
   Special-File-Dir-Path: "/home/br-jmoore/SimEng/specialFiles"
-  # Core-Count MUST be 1 as multi-core is not supported at this time. (A64FX true value is 48)
+  # Core-Count MUST be 1 as multi-core is not supported at this time.
   Core-Count: 1
-  # Socket-Count MUST be 1 as multi-socket simulations are not supported at this time. (A64FX true value is 1)
+  # Socket-Count MUST be 1 as multi-socket simulations are not supported at this time.
   Socket-Count: 1
-  # SMT MUST be 1 as Simultanious-Multi-Threading is not supported at this time. (A64FX true value is 1)
+  # SMT MUST be 1 as Simultanious-Multi-Threading is not supported at this time.
   SMT: 1
   # Below are the values needed to generate /proc/cpuinfo
-  BogoMIPS: 200.00
-  Features: fp asimd evtstrm sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm fcma dcpop sve
-  CPU-Implementer: "0x46"
+  BogoMIPS: 400.00
+  Features: fp asimd evtstrm sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm fcma pmull dcpop sve
+  CPU-Implementer: "0x43"
   CPU-Architecture: 8
   CPU-Variant: "0x1"
-  CPU-Part: "0x001"
+  CPU-Part: "0x0af"
   CPU-Revision: 0
   # Package-Count is used to generate
   # /sys/devices/system/cpu/cpu{{0..Core-Count}}/topology/{{physical_package_id, core_id}}
@@ -286,8 +216,8 @@ def gen_random_config():
       "Loop-Buffer-Size" : random.choice([i for i in range(1, 512)]),
       "Loop-Detection-Threshold" : random.choice([i for i in range(1, 32)]),
   #Process Image
-      "Heap-Size" : random.choice([i for i in range(1024*1024, 2*1024*1024*1024, 32*1024*1024)]), #1MB - 2GB in 32MB steps
-      "Stack-Size" : random.choice([i for i in range(32*1024, 32*1024*1024, 32*1024)]), #32KB - 32MB in 32KB steps
+      "Heap-Size" : 1073741824, #random.choice([i for i in range(1024*1024, 2*1024*1024*1024, 32*1024*1024)]), #1MB - 2GB in 32MB steps
+      "Stack-Size" : 1048576, #random.choice([i for i in range(32*1024, 32*1024*1024, 32*1024)]), #32KB - 32MB in 32KB steps
   #Register Set
       "GeneralPurpose-Count" : random.choice([i for i in range(38, 512+1, 8)]), # 32 - 65535
       "FloatingPoint/SVE-Count" : random.choice([i for i in range(38, 512+1, 8)]), # 32 - 65535

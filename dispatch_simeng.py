@@ -34,13 +34,13 @@ tealeaf_binary_path = os.path.join(BENCHMARK_PATH_BASE, "tealeaf/TeaLeaf-armclan
 minisweep_binary_path = os.path.join(BENCHMARK_PATH_BASE, "minisweep/minisweep-omp-armclang23-armv8.4-a+sve")
 
 BENCHMARKS = {
-    "minibude" : [minibude_binary_path, "-n", "64", "-i", "1", "--deck", minibude_data_path],
-    "stream" : [stream_binary_path],
-    "cloverleaf": [cloverleaf_binary_path, cloverleaf_data_path],
-    "tealeaf": [tealeaf_binary_path],
-    "minisweep": [minisweep_binary_path, "--ncell_x", "4", "--ncell_y", "4", "--ncell_z", \
-                    "4", "--ne", "1", "--na", "32", "--niterations", "1", "--nblock_z", \
-                    "1", "--nthread_e", "1"]
+    #"minibude" : [minibude_binary_path, "-n", "64", "-i", "1", "--deck", minibude_data_path],
+    #"stream" : [stream_binary_path, "a"],
+    #"cloverleaf": [cloverleaf_binary_path, cloverleaf_data_path],
+    "tealeaf": [tealeaf_binary_path, "a"],
+    #"minisweep": [minisweep_binary_path, "--ncell_x", "4", "--ncell_y", "4", "--ncell_z", \
+    #                "4", "--ne", "1", "--na", "32", "--niterations", "1", "--nblock_z", \
+    #                "1", "--nthread_e", "1"]
 }
 
 # Function to check memory usage of a given PID
@@ -107,7 +107,7 @@ def dispatch_batch(sst_params):
 
         while process.poll() is None:
             #Give 4GB headroom per simeng
-            if check_memory(process.pid, 4*1024*1024):
+            if check_memory(process.pid, 16*1024*1024):
                 os.kill(process.pid, signal.SIGKILL)
                 print(f"Killed process {process.pid} due to memory leak")
                 print("This process had config: ")

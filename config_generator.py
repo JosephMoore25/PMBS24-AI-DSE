@@ -46,7 +46,7 @@ L1-Data-Memory:
 L1-Instruction-Memory:
   Interface-Type: Flat
 LSQ-L1-Interface:
-  Access-Latency: 5
+  Access-Latency: {parameters["Access-Latency"]}
   Exclusive: True
   Load-Bandwidth: {parameters["Load-Bandwidth"]}
   Store-Bandwidth: {parameters["Store-Bandwidth"]}
@@ -249,126 +249,6 @@ Latencies:
     - STORE_ADDRESS_SVE
     Execution-Latency: 6
     Execution-Throughput: 1
-# Indexed FMLA instructions split into 2 dependent µops. Latency increased to 15 to mimic such behaviour
-# NOTE: Any changes to the capstone opcode list could invalidate the mapping between ARM instructions and the values below
-  11:
-    Instruction-Opcodes:
-    - 1922
-    - 1924
-    - 1926
-    - 2359
-    - 2360
-    - 2361
-    - 2364
-    - 2365
-    - 2368
-    - 2369
-    - 2371
-    - 2390
-    - 2391
-    - 2392
-    - 2395
-    - 2396
-    - 2399
-    - 2400
-    - 2402
-    - 2445
-    - 2446
-    - 2447
-    - 2450
-    - 2451
-    - 2454
-    - 2455
-    - 2457
-    - 2470
-    - 2471
-    - 2472
-    - 2475
-    - 2476
-    - 2479
-    - 2480
-    - 2482
-    - 3627
-    - 3629
-    - 3631
-    - 3633
-    - 3644
-    - 3646
-    - 3648
-    - 3650
-    - 3709
-    - 3711
-    - 3713
-    - 3715
-    - 4306
-    - 4308
-    - 4310
-    - 4312
-    - 4326
-    - 4328
-    - 4330
-    - 4332
-    - 4372
-    - 4374
-    - 4376
-    - 4378
-    - 4468
-    - 4469
-    - 4470
-    - 4472
-    - 4474
-    - 4476
-    - 4493
-    - 4494
-    - 4495
-    - 4497
-    - 4499
-    - 4501
-    - 4511
-    - 4513
-    - 4515
-    - 4517
-    - 4519
-    - 4521
-    - 4534
-    - 4535
-    - 4536
-    - 4538
-    - 4540
-    - 4542
-    - 4594
-    - 4595
-    - 4599
-    - 4601
-    - 4603
-    - 4605
-    - 4613
-    - 4614
-    - 4618
-    - 4620
-    - 4622
-    - 4624
-    - 4633
-    - 4635
-    - 4637
-    - 4639
-    - 4641
-    - 4643
-    - 5760
-    - 5762
-    - 5764
-    - 5766
-    - 5780
-    - 5782
-    - 5784
-    - 5786
-    - 5824
-    - 5826
-    - 5828
-    - 5830
-    Execution-Latency: 15
-    Execution-Throughput: 1
-# CPU-Info mainly used to generate a replica of the special (or system) file directory
 # structure
 CPU-Info:
   # Set Generate-Special-Dir to True to generate the special files directory, or to False to not.
@@ -450,9 +330,9 @@ def gen_sst(original_parameters):
     "l2_clock" : random.choice([i/2 for i in range(1, 10)]),
     "l2_associativity" : random.choice([2**i for i in range(0, 5)]), #Up to 16
     "l2_size" : random.choice([2**i for i in range(5, 17)]), #32KiB - 64MiB L2
-    "ram_timing" : random.choice([i*10 for i in range(4, 260)]), #40-250ns
+    "ram_timing" : random.choice([i*10 for i in range(4, 26)]), #40-250ns
     "ram_clock" : random.choice([i/2 for i in range(1, 10)]),
-    "ram_size" : 8
+    "ram_size" : 1
   }
   while (parameters["l2_size"] < parameters["l1_size"]):
     parameters["l2_size"] = random.choice([2**i for i in range(5, 17)])

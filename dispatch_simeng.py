@@ -6,6 +6,7 @@ import psutil
 import signal
 import time
 import shlex
+import yaml
 
 USING_SST = True
 
@@ -62,6 +63,9 @@ def generate_batch():
     f.write(config_file)
     f.close()
     sst_params = generator.gen_sst(original_parameters)
+    sst_dest = os.path.join(PATH, "sst-buffer", "sst-%d.yaml" % BATCH_ID)
+    with open(sst_dest, "w") as yaml_file:
+        yaml.dump(sst_params, yaml_file, default_flow_style=False)
     return sst_params
 
 def dispatch_batch(sst_params):
@@ -76,7 +80,7 @@ def dispatch_batch(sst_params):
         if (not USING_SST):
             process = subprocess.Popen(["simeng", config_dest] + BENCHMARKS[i], stdout=f)
         else:
-            print(sst_params)
+            #print(sst_params)
             #sst_params = generator.gen_sst()
             model_options = " ".join([
                 "--simeng_config", config_dest,
@@ -122,5 +126,7 @@ if __name__ == "__main__":
         os.mkdir(os.path.join(PATH, "config-buffer"))
     if not os.path.isdir(os.path.join(PATH, "results-buffer")):
         os.mkdir(os.path.join(PATH, "results-buffer"))
+    if not os.path.isdir(os.path.join(PATH, "sst-buffer")):
+        os.mkdir(os.path.join(PATH, "sst-buffer"))
     sst_params = generate_batch()
     dispatch_batch(sst_params)

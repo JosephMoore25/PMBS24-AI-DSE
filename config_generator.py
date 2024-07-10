@@ -216,7 +216,7 @@ CPU-Info:
 def gen_random_config():
   parameters = {
   #Core
-      "Vector-Length" : random.choice([i for i in range(128, 2048+1, 128)]),
+      "Vector-Length" : random.choice([2**i for i in range(7, 12)]), #128 - 2048. Multiples of 128 may not work
       "Streaming-Vector-Length" : random.choice([2**i for i in range(0, 11+1)] if ENABLE_SME else [0]),
   #Fetch
       "Fetch-Block-Size" : random.choice([2**i for i in range(2, 11+1)]), #4 - 2048 (can go to 32k)
@@ -258,19 +258,21 @@ def gen_random_config():
 def gen_sst(original_parameters):
   parameters = {
     "clw" : random.choice([2**i for i in range(5, 10)]), #Between 32-512
-    "core_clock" : 2,
+    "core_clock" : 2.5,
     "l1_latency" : original_parameters["Access-Latency"], #random.choice([i for i in range(1, 10)]),
-    "l1_clock" : random.choice([i/2 for i in range(1,10)]),
+    "l1_clock" : random.choice([i/2 for i in range(2,10)]),
     "l1_associativity" : random.choice([2**i for i in range(0, 5)]), #Up to 16
-    "l1_size" : random.choice([2**i for i in range(0, 12)]), #Up to 1KiB - 2MiB L1
+    "l1_size" : random.choice([2**i for i in range(4, 12)]), #16KiB - 2MiB L1
     "l2_latency" : random.choice([i for i in range(6, 50)]),
-    "l2_clock" : random.choice([i/2 for i in range(1, 10)]),
+    "l2_clock" : random.choice([i/2 for i in range(2, 10)]),
     "l2_associativity" : random.choice([2**i for i in range(0, 5)]), #Up to 16
-    "l2_size" : random.choice([2**i for i in range(5, 17)]), #32KiB - 64MiB L2
+    "l2_size" : random.choice([2**i for i in range(8, 17)]), #256KiB - 64MiB L2
     "ram_timing" : random.choice([i*10 for i in range(4, 26)]), #40-250ns
-    "ram_clock" : random.choice([i/2 for i in range(1, 10)]),
-    "ram_size" : 4
+    "ram_clock" : random.choice([i/2 for i in range(2, 10)]),
+    "ram_size" : 8
   }
+  while ((parameters["l1_size"]*1024) / parameters["clw"] < parameters["l1_associativity"]):
+    parameters["l1_associativity"] = random.choice([2**i for i in range(0, 5)])
   while (parameters["l2_size"] < parameters["l1_size"]):
     parameters["l2_size"] = random.choice([2**i for i in range(5, 17)])
   while (parameters["l2_latency"] <= parameters["l1_latency"]):

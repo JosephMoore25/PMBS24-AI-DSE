@@ -2,6 +2,7 @@ import sys
 import os
 import pandas as pd
 import dispatch_simeng
+import yaml
 
 #BATCH_SIZE = int(sys.argv[1])
 RUN_INDEX = int(sys.argv[1])
@@ -39,7 +40,21 @@ def get_inputs(index):
         "Store-Bandwidth" : -1,
         "Permitted-Requests-Per-Cycle" : -1,
         "Permitted-Loads-Per-Cycle" : -1,
-        "Permitted-Stores-Per-Cycle" : -1
+        "Permitted-Stores-Per-Cycle" : -1,
+
+        "clw" : -1,
+        "core_clock" : -1,
+        "l1_latency" : -1,
+        "l1_clock" : -1,
+        "l1_associativity" : -1,
+        "l1_size": -1,
+        "l2_latency" : -1
+        "l2_clock" : -1,
+        "l2_associativity" : -1,
+        "l2_size" : -1,
+        "ram_timing" : -1,
+        "ram_clock" : -1,
+        "ram_size" : -1
     }
 
     config = open(os.path.join(PATH, 'config-buffer', 'config-' + str(index) + '.yaml'))
@@ -47,6 +62,11 @@ def get_inputs(index):
         for j in parameters:
             if j + ":" in i:
                 parameters[j] = int(i.split()[-1])
+    with open(os.path.join(PATH, 'sst-buffer', 'sst-' + str(index) + '.yaml'), 'r') as stream:
+        data = yaml.load(stream, Loader=yaml.SafeLoader)
+    for i in data:
+        parameters[i] = data[i]
+        
     return parameters
 
 def get_results(index, benchmark):

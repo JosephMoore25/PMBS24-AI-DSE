@@ -48,7 +48,7 @@ def get_inputs(index):
         "l1_clock" : -1,
         "l1_associativity" : -1,
         "l1_size": -1,
-        "l2_latency" : -1
+        "l2_latency" : -1,
         "l2_clock" : -1,
         "l2_associativity" : -1,
         "l2_size" : -1,
@@ -91,11 +91,13 @@ def get_results(index, benchmark):
         benchmark + "_retired" : -1
     }
     result_file_name = os.path.join(PATH, "results-buffer", benchmark, "results-" + str(index) + ".txt")
+    print(result_file_name)
     result_file = open(result_file_name)
     for i in result_file.readlines():
         for j in results:
-            if all(k in i for k in j.split('_')[1:]):
+            if all(k in i for k in j.split('_')[1:]) and ("cycles." not in i):
                 try:
+                    print(i)
                     results[j] = int(i.split()[-1].strip('%'))
                 except:
                     results[j] = float(i.split()[-1].strip('%'))

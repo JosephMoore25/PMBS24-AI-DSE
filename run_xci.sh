@@ -1,7 +1,6 @@
 #!/bin/bash
 #PBS -q arm
-#PBS -l select=10
-#PBS -l mem=500GB
+#PBS -l select=10:mem=500GB
 #PBS -l walltime=24:00:00
 
 module load cray-python/3.8.5.1

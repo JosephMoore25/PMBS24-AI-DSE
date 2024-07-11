@@ -216,28 +216,28 @@ CPU-Info:
 def gen_random_config():
   parameters = {
   #Core
-      "Vector-Length" : random.choice([2**i for i in range(7, 12)]), #128 - 2048. Multiples of 128 may not work
+      "Vector-Length" : random.choice([2**i for i in range(7, 12)]), #128 - 2048.
       "Streaming-Vector-Length" : random.choice([2**i for i in range(0, 11+1)] if ENABLE_SME else [0]),
   #Fetch
       "Fetch-Block-Size" : random.choice([2**i for i in range(2, 11+1)]), #4 - 2048 (can go to 32k)
-      "Loop-Buffer-Size" : random.choice([i for i in range(1, 512)]),
-      "Loop-Detection-Threshold" : random.choice([i for i in range(1, 32)]),
+      "Loop-Buffer-Size" : random.choice([i for i in range(1, 512+1)]),
+      "Loop-Detection-Threshold" : random.choice([i for i in range(1, 32+1)]),
   #Process Image
       "Heap-Size" : 1073741824, #random.choice([i for i in range(1024*1024, 2*1024*1024*1024, 32*1024*1024)]), #1MB - 2GB in 32MB steps
       "Stack-Size" : 1048576, #random.choice([i for i in range(32*1024, 32*1024*1024, 32*1024)]), #32KB - 32MB in 32KB steps
   #Register Set
-      "GeneralPurpose-Count" : random.choice([i for i in range(38, 512+1, 8)]), # 32 - 65535
-      "FloatingPoint/SVE-Count" : random.choice([i for i in range(38, 512+1, 8)]), # 32 - 65535
-      "Predicate-Count" : random.choice([i for i in range(24, 512+1, 8)]), # 17 - 65535
-      "Conditional-Count": random.choice([i for i in range(8, 512+1, 8)]),
+      "GeneralPurpose-Count" : random.choice([38, 39] + [i for i in range(40, 512+1, 8)]), # 38 - 512
+      "FloatingPoint/SVE-Count" : random.choice([38, 39] + [i for i in range(40, 512+1, 8)]), # 38 - 512
+      "Predicate-Count" : random.choice([i for i in range(24, 512+1, 8)]), # 24 - 512
+      "Conditional-Count": random.choice([i for i in range(8, 512+1, 8)]), # 8 - 512
   #Pipeline Widths
-      "Commit" : random.choice([i for i in range(1, 64)]),
-      "FrontEnd" : random.choice([i for i in range(1, 64)]),
-      "LSQ-Completion": random.choice([i for i in range(1, 64)]),
+      "Commit" : random.choice([i for i in range(1, 64+1)]),
+      "FrontEnd" : random.choice([i for i in range(1, 64+1)]),
+      "LSQ-Completion": random.choice([i for i in range(1, 64+1)]),
   #Queue Sizes
-      "ROB" : random.choice([i for i in range(4, 512, 4)]),
-      "Load" : random.choice([i for i in range(4, 512, 4)]),
-      "Store" : random.choice([i for i in range(4, 512, 4)]),
+      "ROB" : random.choice([i for i in range(4, 512+1, 4)]),
+      "Load" : random.choice([i for i in range(4, 512+1, 4)]),
+      "Store" : random.choice([i for i in range(4, 512+1, 4)]),
   #LSQ L1 Interface
       "Access-Latency" : random.choice([i for i in range(1, 10)]), #5,#random.choice([5]),
       "Load-Bandwidth" : random.choice([2**i for i in range(4, 10+1)]), #16 - 1024

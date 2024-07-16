@@ -9,4 +9,4 @@ module load openmpi-4.1.6
 pip install psutil
 pip install pyyaml
 
-aprun -n 500 $HOME/simeng-parameter-study/xci_launcher.sh
+aprun -n 640 $HOME/simeng-parameter-study/xci_launcher.sh

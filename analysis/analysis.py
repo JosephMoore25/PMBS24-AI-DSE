@@ -42,7 +42,6 @@ MODEL_SAVE_NAME = "model.pkl"
 data_path = os.path.join(curdir, data)
 df = pd.read_csv(data_path)
 print("Original df shape: ", df.shape)
-df = pd.concat([df[:120000], df[140000:]])
 #df = df[:20000]
 
 config_options = ['Vector-Length','Streaming-Vector-Length','Fetch-Block-Size','Loop-Buffer-Size', \
@@ -56,9 +55,9 @@ config_options = ['Vector-Length','Streaming-Vector-Length','Fetch-Block-Size','
 #config_options = ['Vector-Length', 'Commit', 'ROB', 'l1_latency', 'l1_size', 'l2_latency', 'l2_size']
 #config_options = ['Vector-Length', 'l1_latency']
 #config_options = ['Vector-Length', 'ROB', 'l1_latency', 'l1_size', 'l2_latency', 'l2_size', "Load-Bandwidth", "Store-Bandwidth", "clw"]
-cycle_options = ['minibude_cycles', 'stream_cycles', 'tealeaf_cycles', 'cloverleaf_cycles', 'minisweep_cycles']
+#cycle_options = ['minibude_cycles', 'stream_cycles', 'tealeaf_cycles', 'cloverleaf_cycles', 'minisweep_cycles']
 #cycle_options = ['minibude_cycles']
-#cycle_options = ['stream_cycles']
+cycle_options = ['stream_cycles']
 
 def clean_data(df):
     # Drop rows with -1 in cycle values
@@ -286,10 +285,10 @@ for current_code in cycle_options:
     
 #print(total_results)
 
-results_df = pd.DataFrame(columns=result_cols)
-for i in total_results:
-    results_df.loc[len(results_df), :] = i
-results_df.to_csv("model_results.csv")
+#results_df = pd.DataFrame(columns=result_cols)
+#for i in total_results:
+#    results_df.loc[len(results_df), :] = i
+#results_df.to_csv("model_results.csv")
 
 #print(results_table)
 

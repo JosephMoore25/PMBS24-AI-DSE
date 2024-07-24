@@ -8,6 +8,7 @@ import yaml
 RUN_INDEX = int(sys.argv[1])
 PATH = dispatch_simeng.PATH
 DB_NAME = os.path.join(PATH, sys.argv[2])
+CONFIG_NO = int(sys.argv[3])
 
 def get_inputs(index):
     parameters = {
@@ -104,8 +105,8 @@ def get_results(index, benchmark):
     return results
 
 
-columns = []
-data = []
+columns = ["Config-no"]
+data = [CONFIG_NO]
 
 #for i in range(BATCH_SIZE):
 #    parameters = get_inputs(i)

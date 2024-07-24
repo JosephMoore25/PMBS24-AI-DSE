@@ -1,5 +1,7 @@
 import random
 import math
+import pandas as pd
+import os
 
 ENABLE_SME = False
 
@@ -279,6 +281,69 @@ def gen_sst(original_parameters):
     parameters["l2_latency"] = random.choice([i for i in range(6, 50)])
 
   return parameters
+
+def read_parameters(index):
+  #curdir = "/home/joseph/simeng-parameter-study"
+  curdir = "C:/Users/Joseph/Documents/simeng-parameter-study/analysis"
+  data = "aarch64-results.csv"
+  data_path = os.path.join(curdir, data)
+  df = pd.read_csv(data_path, skiprows = lambda x: x not in [0, index], nrows=2)
+  print(df.shape)
+  print(df.head)
+  core_params = {
+      #Core
+      "Vector-Length" : df.loc[0,'Vector-Length'],
+      "Streaming-Vector-Length" : df.loc[0,'Streaming-Vector-Length'],
+  #Fetch
+      "Fetch-Block-Size" : df.loc[0,'Fetch-Block-Size'],
+      "Loop-Buffer-Size" : df.loc[0,'Loop-Buffer-Size'],
+      "Loop-Detection-Threshold" : df.loc[0,'Loop-Detection-Threshold'],
+  #Process Image
+      "Heap-Size" : 1073741824, #random.choice([i for i in range(1024*1024, 2*1024*1024*1024, 32*1024*1024)]), #1MB - 2GB in 32MB steps
+      "Stack-Size" : 1048576, #random.choice([i for i in range(32*1024, 32*1024*1024, 32*1024)]), #32KB - 32MB in 32KB steps
+  #Register Set
+      "GeneralPurpose-Count" : df.loc[0,'GeneralPurpose-Count'],
+      "FloatingPoint/SVE-Count" : df.loc[0,'FloatingPoint/SVE-Count'],
+      "Predicate-Count" : df.loc[0,'Predicate-Count'],
+      "Conditional-Count": df.loc[0,'Conditional-Count'],
+  #Pipeline Widths
+      "Commit" : df.loc[0,'Commit'],
+      "FrontEnd" : df.loc[0,'FrontEnd'],
+      "LSQ-Completion": df.loc[0,'LSQ-Completion'],
+  #Queue Sizes
+      "ROB" : df.loc[0,'ROB'],
+      "Load" : df.loc[0,'Load'],
+      "Store" : df.loc[0,'Store'],
+  #LSQ L1 Interface
+      "Access-Latency" : df.loc[0,'Access-Latency'],
+      "Load-Bandwidth" : df.loc[0,'Load-Bandwidth'],
+      "Store-Bandwidth" : df.loc[0,'Store-Bandwidth'],
+      "Permitted-Requests-Per-Cycle" : df.loc[0,'Permitted-Requests-Per-Cycle'],
+      "Permitted-Loads-Per-Cycle" : df.loc[0,'Permitted-Loads-Per-Cycle'],
+      "Permitted-Stores-Per-Cycle" : df.loc[0,'Permitted-Stores-Per-Cycle']
+  }
+
+  sst_params = {
+    "clw" : df.loc[0,'clw'],
+    "core_clock" : 2.5,
+    "l1_latency" : df.loc[0,'Access-Latency'],
+    "l1_clock" : df.loc[0,'l1_clock'],
+    "l1_associativity" : df.loc[0,'l1_associativity'],
+    "l1_size" : df.loc[0,'l1_size'],
+    "l2_latency" : df.loc[0,'l2_latency'],
+    "l2_clock" : df.loc[0,'l2_clock'],
+    "l2_associativity" : df.loc[0,'l2_associativity'],
+    "l2_size" : df.loc[0,'l2_size'],
+    "ram_timing" : df.loc[0,'ram_timing'],
+    "ram_clock" : df.loc[0,'ram_clock'],
+    "ram_size" : 8
+  }
+
+  return get_config(core_params), sst_params, core_params
+
+
+
+
 
 #if __name__ == "__main__":
 #  config_file, = gen_random_config()

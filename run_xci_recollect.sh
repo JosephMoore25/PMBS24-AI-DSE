@@ -9,6 +9,4 @@ module load openmpi-4.1.6
 pip install psutil
 pip install pyyaml
 
-for ((index=0; index<=190380; index+=1280)); do
-    aprun -n 1280 $HOME/simeng-parameter-study/xci_recollect.sh $index
-done
+aprun -n 1280 $HOME/simeng-parameter-study/xci_recollect.sh

@@ -19,7 +19,7 @@ except:
     exit()
 
 PATH = "/home/br-jmoore/simeng-parameter-study"
-PATH = "C:/Users/Joseph/Documents/simeng-parameter-study/analysis"
+#PATH = "C:/Users/Joseph/Documents/simeng-parameter-study/analysis"
 BENCHMARK_PATH_BASE="/home/br-jmoore/benchmarks/benchmark-binaries/aarch64/armclang-23/"
 DATA_PATH_BASE = "/home/br-jmoore/benchmarks/benchmark-binaries/data"
 HOME = os.path.expanduser("~")
@@ -27,7 +27,7 @@ HOME = os.path.expanduser("~")
 minibude_binary_path = os.path.join(BENCHMARK_PATH_BASE, "minibude/minibude-omp_armclang23_armv8.4-a+sve")
 minibude_data_path = os.path.join(DATA_PATH_BASE, "minibude/bm1/")
 
-stream_binary_path = os.path.join(BENCHMARK_PATH_BASE, "stream/stream-100k_armclang23_armv8.4-a+sve")
+stream_binary_path = os.path.join(BENCHMARK_PATH_BASE, "stream/stream-500k_armclang23_armv8.4-a+sve")
 
 cloverleaf_binary_path = os.path.join(BENCHMARK_PATH_BASE, "cloverleaf/cloverleaf-omp-armclang23-armv8.4-a+sve")
 cloverleaf_data_path = os.path.join(DATA_PATH_BASE, "cloverleaf/clover.in")
@@ -39,8 +39,8 @@ minisweep_binary_path = os.path.join(BENCHMARK_PATH_BASE, "minisweep/minisweep-o
 BENCHMARKS = {
     #"minibude" : [minibude_binary_path, "-n", "64", "-i", "1", "--deck", minibude_data_path],
     "stream" : [stream_binary_path, "a"],
-    #"cloverleaf": [cloverleaf_binary_path, cloverleaf_data_path],
-    "tealeaf": [tealeaf_binary_path, "a"],
+    "cloverleaf": [cloverleaf_binary_path, cloverleaf_data_path],
+    #"tealeaf": [tealeaf_binary_path, "a"],
     #"minisweep": [minisweep_binary_path, "--ncell_x", "4", "--ncell_y", "4", "--ncell_z", \
     #                "4", "--ne", "1", "--na", "32", "--niterations", "1", "--nblock_z", \
     #                "1", "--nthread_e", "1"]
@@ -145,4 +145,4 @@ if __name__ == "__main__":
         os.mkdir(os.path.join(PATH, "sst-buffer"))
     #sst_params = generate_batch()
     sst_params = load_batch(INDEX_ID)
-    #dispatch_batch(sst_params)
+    dispatch_batch(sst_params)

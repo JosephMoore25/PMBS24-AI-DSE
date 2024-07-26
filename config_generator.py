@@ -283,8 +283,8 @@ def gen_sst(original_parameters):
   return parameters
 
 def read_parameters(index):
-  #curdir = "/home/joseph/simeng-parameter-study"
-  curdir = "C:/Users/Joseph/Documents/simeng-parameter-study/analysis"
+  curdir = "/home/br-jmoore/simeng-parameter-study"
+  #curdir = "C:/Users/Joseph/Documents/simeng-parameter-study/analysis"
   data = "aarch64-results.csv"
   data_path = os.path.join(curdir, data)
   df = pd.read_csv(data_path, skiprows = lambda x: x not in [0, index], nrows=2)
@@ -324,18 +324,18 @@ def read_parameters(index):
   }
 
   sst_params = {
-    "clw" : df.loc[0,'clw'],
+    "clw" : df.loc[0,'clw'].item(),
     "core_clock" : 2.5,
-    "l1_latency" : df.loc[0,'Access-Latency'],
-    "l1_clock" : df.loc[0,'l1_clock'],
-    "l1_associativity" : df.loc[0,'l1_associativity'],
-    "l1_size" : df.loc[0,'l1_size'],
-    "l2_latency" : df.loc[0,'l2_latency'],
-    "l2_clock" : df.loc[0,'l2_clock'],
-    "l2_associativity" : df.loc[0,'l2_associativity'],
-    "l2_size" : df.loc[0,'l2_size'],
-    "ram_timing" : df.loc[0,'ram_timing'],
-    "ram_clock" : df.loc[0,'ram_clock'],
+    "l1_latency" : df.loc[0,'Access-Latency'].item(),
+    "l1_clock" : df.loc[0,'l1_clock'].item(),
+    "l1_associativity" : df.loc[0,'l1_associativity'].item(),
+    "l1_size" : df.loc[0,'l1_size'].item(),
+    "l2_latency" : df.loc[0,'l2_latency'].item(),
+    "l2_clock" : df.loc[0,'l2_clock'].item(),
+    "l2_associativity" : df.loc[0,'l2_associativity'].item(),
+    "l2_size" : df.loc[0,'l2_size'].item(),
+    "ram_timing" : df.loc[0,'ram_timing'].item(),
+    "ram_clock" : df.loc[0,'ram_clock'].item(),
     "ram_size" : 8
   }
 

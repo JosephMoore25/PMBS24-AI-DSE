@@ -273,8 +273,9 @@ def gen_sst(original_parameters):
     "ram_clock" : random.choice([i/2 for i in range(2, 10)]),
     "ram_size" : 8
   }
-  while ((parameters["l1_size"]*1024) / parameters["clw"] < parameters["l1_associativity"]):
-    parameters["l1_associativity"] = random.choice([2**i for i in range(0, 5)])
+  #NOT NEEDED GIVEN L1 SIZE INCREASE
+  #while ((parameters["l1_size"]*1024) / parameters["clw"] < parameters["l1_associativity"]):
+  #  parameters["l1_associativity"] = random.choice([2**i for i in range(0, 5)])
   while (parameters["l2_size"] < parameters["l1_size"]):
     parameters["l2_size"] = random.choice([2**i for i in range(5, 17)])
   while (parameters["l2_latency"] <= parameters["l1_latency"]):
@@ -324,18 +325,18 @@ def read_parameters(index):
   }
 
   sst_params = {
-    "clw" : df.loc[0,'clw'],
+    "clw" : df.loc[0,'clw'].item(),
     "core_clock" : 2.5,
-    "l1_latency" : df.loc[0,'Access-Latency'],
-    "l1_clock" : df.loc[0,'l1_clock'],
-    "l1_associativity" : df.loc[0,'l1_associativity'],
-    "l1_size" : df.loc[0,'l1_size'],
-    "l2_latency" : df.loc[0,'l2_latency'],
-    "l2_clock" : df.loc[0,'l2_clock'],
-    "l2_associativity" : df.loc[0,'l2_associativity'],
-    "l2_size" : df.loc[0,'l2_size'],
-    "ram_timing" : df.loc[0,'ram_timing'],
-    "ram_clock" : df.loc[0,'ram_clock'],
+    "l1_latency" : df.loc[0,'Access-Latency'].item(),
+    "l1_clock" : df.loc[0,'l1_clock'].item(),
+    "l1_associativity" : df.loc[0,'l1_associativity'].item(),
+    "l1_size" : df.loc[0,'l1_size'].item(),
+    "l2_latency" : df.loc[0,'l2_latency'].item(),
+    "l2_clock" : df.loc[0,'l2_clock'].item(),
+    "l2_associativity" : df.loc[0,'l2_associativity'].item(),
+    "l2_size" : df.loc[0,'l2_size'].item(),
+    "ram_timing" : df.loc[0,'ram_timing'].item(),
+    "ram_clock" : df.loc[0,'ram_clock'].item(),
     "ram_size" : 8
   }
 

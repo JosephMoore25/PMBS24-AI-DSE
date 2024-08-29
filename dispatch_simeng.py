@@ -10,14 +10,6 @@ import yaml
 
 USING_SST = True
 
-try:
-    BATCH_ID = int(sys.argv[1])
-    INDEX_ID = int(sys.argv[2])
-    #print("Batch ID = " + str(BATCH_ID))
-except:
-    print("Invalid argument: supply the index within the batch as an int")
-    exit()
-
 PATH = "/home/br-jmoore/simeng-parameter-study"
 #PATH = "C:/Users/Joseph/Documents/simeng-parameter-study/analysis"
 BENCHMARK_PATH_BASE="/home/br-jmoore/benchmarks/benchmark-binaries/aarch64/armclang-23/"
@@ -27,7 +19,7 @@ HOME = os.path.expanduser("~")
 minibude_binary_path = os.path.join(BENCHMARK_PATH_BASE, "minibude/minibude-omp_armclang23_armv8.4-a+sve")
 minibude_data_path = os.path.join(DATA_PATH_BASE, "minibude/bm1/")
 
-stream_binary_path = os.path.join(BENCHMARK_PATH_BASE, "stream/stream-500k_armclang23_armv8.4-a+sve")
+stream_binary_path = os.path.join(BENCHMARK_PATH_BASE, "stream/stream-200k_armclang23_armv8.4-a+sve")
 
 cloverleaf_binary_path = os.path.join(BENCHMARK_PATH_BASE, "cloverleaf/cloverleaf-omp-armclang23-armv8.4-a+sve")
 cloverleaf_data_path = os.path.join(DATA_PATH_BASE, "cloverleaf/clover.in")
@@ -137,6 +129,13 @@ def dispatch_batch(sst_params):
         #subprocess.call(["simeng", config_dest] + BENCHMARKS[i], stdout=f)
 
 if __name__ == "__main__":
+    try:
+        BATCH_ID = int(sys.argv[1])
+        INDEX_ID = int(sys.argv[2])
+        #print("Batch ID = " + str(BATCH_ID))
+    except:
+        print("Invalid argument: supply the index within the batch as an int")
+        exit()
     if not os.path.isdir(os.path.join(PATH, "config-buffer")):
         os.mkdir(os.path.join(PATH, "config-buffer"))
     if not os.path.isdir(os.path.join(PATH, "results-buffer")):

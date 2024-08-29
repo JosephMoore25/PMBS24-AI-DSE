@@ -284,8 +284,8 @@ def gen_sst(original_parameters):
   return parameters
 
 def read_parameters(index):
-  #curdir = "/home/joseph/simeng-parameter-study"
-  curdir = "C:/Users/Joseph/Documents/simeng-parameter-study/analysis"
+  curdir = "/home/br-jmoore/simeng-parameter-study"
+  #curdir = "C:/Users/Joseph/Documents/simeng-parameter-study/analysis"
   data = "aarch64-results.csv"
   data_path = os.path.join(curdir, data)
   df = pd.read_csv(data_path, skiprows = lambda x: x not in [0, index], nrows=2)

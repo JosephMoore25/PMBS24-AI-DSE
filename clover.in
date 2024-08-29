@@ -10,6 +10,5 @@
  initial_timestep=0.04
  timestep_rise=1.5
  max_timestep=0.04
- end_time=3.0
- test_problem 1
+ end_time=9.0
 *endclover

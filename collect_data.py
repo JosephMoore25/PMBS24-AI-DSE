@@ -95,6 +95,10 @@ def get_results(index, benchmark):
     print(result_file_name)
     result_file = open(result_file_name)
     for i in result_file.readlines():
+        if "Error from read_input" in i or "EMERGENCY SHUTDOWN" in i:
+            for j in range(len(results)):
+                results[j] = -1
+            break
         for j in results:
             if all(k in i for k in j.split('_')[1:]) and ("cycles." not in i):
                 try:
@@ -106,7 +110,7 @@ def get_results(index, benchmark):
 
 
 columns = ["Config-no"]
-data = [CONFIG_NO]
+data = [[CONFIG_NO]]
 
 #for i in range(BATCH_SIZE):
 #    parameters = get_inputs(i)
@@ -142,7 +146,7 @@ for benchmark in dispatch_simeng.BENCHMARKS:
         temp_data.append(results[j])
         columns.append(j)
         
-data.append(temp_data)
+data[0] += temp_data
 
 df = pd.DataFrame(data, columns=columns)
 

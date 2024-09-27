@@ -1,0 +1,1699 @@
+diff --git a/src/include/simeng/arch/aarch64/helpers/sve.hh b/src/include/simeng/arch/aarch64/helpers/sve.hh
+index 076a2f29..89cb13de 100644
+--- a/src/include/simeng/arch/aarch64/helpers/sve.hh
++++ b/src/include/simeng/arch/aarch64/helpers/sve.hh
+@@ -114,6 +114,33 @@ RegisterValue sveAddvPredicated(srcValContainer& sourceValues,
+   return {out, 256};
+ }
+ 
++/** Helper function for NEON instructions with the format `uaddlv Vd, Vn.T`.
++ * T represents the type of the destination register (e.g. for h0, T =
++ * uint32_t). U represents the type of the sourceValues[0] (e.g. for v0.8b, U =
++ * uint8_t) Returns correctly formatted RegisterValue. */
++template <typename T, typename U, int I>
++RegisterValue sveAddlv(srcValContainer& sourceValues) {
++  const U* n = sourceValues[0].getAsVector<U>();
++  T out = 0;
++  for (int i = 0; i < I; i++) {
++    out += n[i];
++  }
++  return {out, 256};
++}
++
++/** Helper function for NEON instructions with the format `umaxv Vd, Vn.T`.
++ * T represents the type of sourceValues (e.g. for vn.s, T = uint32_t).
++ * Returns correctly formatted RegisterValue. */
++template <typename T, int I>
++RegisterValue sveUMaxV(srcValContainer& sourceValues) {
++  const T* n = sourceValues[0].getAsVector<T>();
++  T out = n[0];
++  for (int i = 1; i < I; i++) {
++    out = std::max(n[i], out);
++  }
++  return {out, 256};
++}
++
+ /** Helper function for SVE instructions with the format `adr zd, [zn, zm{,
+  * lsl #<1,2,3>}]`.
+  * T represents the type of sourceValues (e.g. for zn.d, T = uint64_t).
+@@ -257,6 +284,32 @@ RegisterValue sveCpy_imm(
+   return {out, 256};
+ }
+ 
++/** Helper function for SVE instructions with the format `cpy zd, pg/m, vn
++ * T represents the type of sourceValues (e.g. for zd.d, T = int64_t).
++ * Returns correctly formatted RegisterValue. */
++template <typename T>
++RegisterValue sveCpy_Scalar(
++    srcValContainer& sourceValues,
++    const simeng::arch::aarch64::InstructionMetadata& metadata,
++    const uint16_t VL_bits) {
++  const T* zd = sourceValues[0].getAsVector<T>();
++  const uint64_t* p = sourceValues[1].getAsVector<uint64_t>();
++  const T vn = sourceValues[2].get<T>();
++
++  const uint16_t partition_num = VL_bits / (sizeof(T) * 8);
++  T out[256 / sizeof(T)] = {0};
++
++  for (int i = 0; i < partition_num; i++) {
++    uint64_t shifted_active = 1ull << ((i % (64 / sizeof(T))) * sizeof(T));
++    if (p[i / (64 / sizeof(T))] & shifted_active) {
++      out[i] = vn;
++    } else {
++      out[i] = zd[i];
++    }
++  }
++  return {out, 256};
++}
++
+ /** Helper function for SVE instructions with the format `dec<b,d,h,s> xdn{,
+  * pattern{, MUL #imm}}`.
+  * T represents the type of operation (e.g. for DECD, T = uint64_t).
+@@ -849,6 +902,132 @@ RegisterValue sveFsqrtPredicated_2vecs(srcValContainer& sourceValues,
+   return {out, 256};
+ }
+ 
++/** Helper function for SVE instructions with the format `ftsmul zd, zn, zm`.
++ * T represents the type of sourceValues (e.g. for zn.d, T = double).
++ * Returns correctly formatted RegisterValue. U represents the same precision as
++ * T, but as an integer type for the second source register. */
++template <typename T, typename U>
++RegisterValue sveFTrigSMul(srcValContainer& sourceValues,
++                           const uint16_t VL_bits) {
++  const T* n = sourceValues[0].getAsVector<T>();
++  const U* m = sourceValues[1].getAsVector<U>();
++
++  const uint16_t partition_num = VL_bits / (sizeof(T) * 8);
++  T out[256 / sizeof(T)] = {0};
++
++  U bit_0_mask = 1ull << (sizeof(T) * 8 - 1);
++  // Square each element in the first source vector and then set the sign bit
++  // to a copy of bit 0 of the corresponding element in the second source
++  // register
++  for (int i = 0; i < partition_num; i++) {
++    out[i] = n[i] * n[i];
++    T sign_bit = m[i] & bit_0_mask ? 1.0 : -1.0;
++    out[i] = std::abs(out[i]) * sign_bit;
++  }
++
++  return {out, 256};
++}
++
++/** Helper function for SVE instructions with the format `ftssel zd, zn, zm`.
++ * T represents the type of sourceValues (e.g. for zn.d, T = double).
++ * Returns correctly formatted RegisterValue. U represents the same precision as
++ * T, but as an integer type for the second source register. */
++template <typename T, typename U>
++RegisterValue sveFTrigSSel(srcValContainer& sourceValues,
++                           const uint16_t VL_bits) {
++  const T* n = sourceValues[0].getAsVector<T>();
++  const U* m = sourceValues[1].getAsVector<U>();
++
++  const uint16_t partition_num = VL_bits / (sizeof(T) * 8);
++  T out[256 / sizeof(T)] = {0};
++
++  U bit_0_mask = 1ull << (sizeof(T) * 8 - 1);
++  U bit_1_mask = 1ull << (sizeof(T) * 8 - 2);
++
++  // Place the value 1.0 or a copy of the first source vector element in the
++  // destination element, depending on bit 0 of the corresponding element of
++  // the second source vector. The sign bit of the destination element is
++  // copied from bit 1 of the second source vector
++  for (int i = 0; i < partition_num; i++) {
++    out[i] = m[i] & bit_0_mask ? 1.0 : n[i];
++    T sign_bit = m[i] & bit_1_mask ? 1.0 : -1.0;
++    out[i] = std::abs(out[i]) * sign_bit;
++  }
++
++  return {out, 256};
++}
++
++/** Helper function for SVE instructions with the format `ftmad zd, zn, zm,
++ * #imm`. T represents the type of sourceValues (e.g. for zn.d, T = double).
++ * Returns correctly formatted RegisterValue. **/
++template <typename T>
++RegisterValue sveFTrigMad(
++    srcValContainer& sourceValues,
++    const simeng::arch::aarch64::InstructionMetadata& metadata,
++    const uint16_t VL_bits) {
++  const T* n = sourceValues[0].getAsVector<T>();
++  const T* m = sourceValues[1].getAsVector<T>();
++  const uint8_t imm = static_cast<uint8_t>(metadata.operands[1].imm);
++
++  const std::array<double, 8> sin64 = {1.0,
++                                       -0.1666666666666661,
++                                       0.8333333333320002e-02,
++                                       -0.1984126982840213e-03,
++                                       0.2755731329901505e-05,
++                                       -0.2505070584637887e-07,
++                                       0.1589413637195215e-09,
++                                       0.0};
++
++  const std::array<double, 8> cos64 = {1.0,
++                                       -0.5000000000000000,
++                                       0.4166666666666645e-01,
++                                       -0.1388888888886111e-02,
++                                       0.2480158728388683e-04,
++                                       -0.2755731309913950e-06,
++                                       0.2087558253975872e-08,
++                                       -0.1135338700720054e-10};
++
++  const std::array<float, 8> sin32 = {1.0,
++                                      -1.666666716337e-01,
++                                      8.333330973983e-03,
++                                      -1.983967522392e-04,
++                                      2.721174723774e-06,
++                                      0.0,
++                                      0.0,
++                                      0.0};
++
++  const std::array<float, 8> cos32 = {1.0,
++                                      -5.000000000000e-01,
++                                      4.166664928198e-02,
++                                      -1.388759003021e-03,
++                                      2.446388680255e-05,
++                                      0.0,
++                                      0.0,
++                                      0.0};
++
++  const uint16_t partition_num = VL_bits / (sizeof(T) * 8);
++  T out[256 / sizeof(T)] = {0};
++  // std::array<T, 8> lut;
++
++  for (int i = 0; i < partition_num; i++) {
++    T coeff;
++    const bool sign_bit = m[i] < 0 ? 1 : 0;
++    // If float then use those LUTs
++    if (sizeof(T) == 4) {
++      coeff = sign_bit ? cos32[imm] : sin32[imm];
++    }
++    // Else if double use those LUTs
++    else {
++      coeff = sign_bit ? cos64[imm] : sin64[imm];
++    }
++    // TODO: Add FP16 support if/when we eventually support these (may require
++    // C++23)
++    out[i] = n[i] * std::abs(m[i]) + coeff;
++  }
++
++  return {out, 256};
++}
++
+ /** Helper function for SVE instructions with the format `inc<b, d, h, w>
+  * xdn{, pattern{, MUL #imm}}`.
+  * T represents the type of operation (e.g. for INCB, T = int8_t).
+@@ -934,6 +1113,65 @@ RegisterValue sveIndex(
+   return {out, 256};
+ }
+ 
++/** Helper function for SVE instructions with the format `lastb vd, pg, zn`.
++ * T represents the vector register type (e.g. zd.d would be uint64_t).
++ * Returns correctly formatted RegisterValue. */
++template <typename T>
++RegisterValue sveLastBScalar(srcValContainer& sourceValues,
++                             const uint16_t VL_bits) {
++  const uint64_t* p = sourceValues[0].getAsVector<uint64_t>();
++  const T* n = sourceValues[1].getAsVector<T>();
++
++  const uint16_t partition_num = VL_bits / (sizeof(T) * 8);
++  T out;
++
++  // Get last active element
++  int lastElem = 0;
++  for (int i = partition_num - 1; i >= 0; i--) {
++    uint64_t shifted_active = 1ull << ((i % (64 / sizeof(T))) * sizeof(T));
++    if (p[i / (64 / sizeof(T))] & shifted_active) {
++      lastElem = i;
++      break;
++    }
++    // If no active lane has been found, select highest element instead
++    if (i == 0) lastElem = partition_num - 1;
++  }
++
++  out = n[lastElem];
++  return {out, 256};
++}
++
++/** Helper function for SVE instructions with the format `clastb vd, pg, vd,
++ * zn`. T represents the vector register type (e.g. zd.d would be uint64_t).
++ * Returns correctly formatted RegisterValue. */
++template <typename T>
++RegisterValue sveCLastBScalar(srcValContainer& sourceValues,
++                              const uint16_t VL_bits) {
++  const uint64_t* p = sourceValues[1].getAsVector<uint64_t>();
++  const uint64_t* m = sourceValues[2].getAsVector<uint64_t>();
++  const T* n = sourceValues[3].getAsVector<T>();
++
++  const uint16_t partition_num = VL_bits / (sizeof(T) * 8);
++  T out;
++
++  // Get last active element
++  int lastElem = -1;
++  for (int i = partition_num - 1; i >= 0; i--) {
++    uint64_t shifted_active = 1ull << ((i % (64 / sizeof(T))) * sizeof(T));
++    if (p[i / (64 / sizeof(T))] & shifted_active) {
++      lastElem = i;
++      break;
++    }
++  }
++
++  if (lastElem < 0) {
++    out = static_cast<uint64_t>(static_cast<T>(m[0]));
++  } else {
++    out = static_cast<uint64_t>(static_cast<T>(n[lastElem]));
++  }
++  return {out, 256};
++}
++
+ /** Helper function for SVE instructions with the format `<AND, EOR, ...>
+  * pd, pg/z, pn, pm`.
+  * T represents the type of sourceValues (e.g. for pn.d, T = uint64_t).
+@@ -1291,6 +1529,69 @@ std::array<uint64_t, 4> svePsel(
+   return out;
+ }
+ 
++/** Helper function for SVE instructions with the format `pfirst pdn, pg, pdn`.
++ * Returns an array of 4 uint64_t elements. */
++std::array<uint64_t, 4> svePfirst(srcValContainer& sourceValues,
++                                  const uint16_t VL_bits) {
++  const uint16_t partition_num = VL_bits / 8;
++  const uint64_t* p = sourceValues[0].getAsVector<uint64_t>();
++  const uint64_t* dn = sourceValues[1].getAsVector<uint64_t>();
++  // Set destination d as source n to copy all false lanes and the active lanes
++  // beyond the first
++  std::array<uint64_t, 4> out = {dn[0], dn[1], dn[2], dn[3]};
++
++  // Get the first active lane and set same lane in destination predicate
++  for (int i = 0; i < partition_num; i++) {
++    uint64_t shifted_active = 1ull << ((i % (64)));
++    if (p[i / 64] & shifted_active) {
++      out[i / 64] |= shifted_active;
++      break;
++    }
++  }
++  return out;
++}
++
++/** Helper function for SVE instructions with the format `pnext pdn, pv, pdn`.
++ * Returns an array of 4 uint64_t elements, and updates the NZCV flags. */
++template <typename T>
++std::tuple<std::array<uint64_t, 4>, uint8_t> svePnext(
++    srcValContainer& sourceValues,
++    const simeng::arch::aarch64::InstructionMetadata& metadata,
++    const uint16_t VL_bits) {
++  const uint16_t partition_num = VL_bits / (sizeof(T) * 8);
++  const uint64_t* p = sourceValues[1].getAsVector<uint64_t>();
++  const uint64_t* dn = sourceValues[2].getAsVector<uint64_t>();
++  // Set destination elements to 0
++  std::array<uint64_t, 4> out = {0, 0, 0, 0};
++
++  // Get pattern
++  const uint16_t count =
++      sveGetPattern(metadata.operandStr, sizeof(T) * 8, VL_bits);
++
++  // Exit early if count == 0
++  if (count == 0) return {out, getNZCVfromPred(out, VL_bits, sizeof(T))};
++  // Get last active element of dn.pattern
++  int lastElem = -1;
++  for (int i = partition_num - 1; i >= 0; i--) {
++    if (i < count) {
++      uint64_t shifted_active = 1ull << ((i % (64 / sizeof(T))) * sizeof(T));
++      if (dn[i / (64 / sizeof(T))] & shifted_active) {
++        lastElem = i;
++        break;
++      }
++    }
++  }
++  // Get next active element of p, starting from last of dn.pattern
++  for (int i = lastElem + 1; i < partition_num; i++) {
++    uint64_t shifted_active = 1ull << ((i % (64 / sizeof(T))) * sizeof(T));
++    if (p[i / (64 / sizeof(T))] & shifted_active) {
++      out[i / (64 / sizeof(T))] |= shifted_active;
++      break;
++    }
++  }
++  return {out, getNZCVfromPred(out, VL_bits, sizeof(T))};
++}
++
+ /** Helper function for SVE instructions with the format `ptrue pd{,
+  * pattern}.
+  * T represents the type of sourceValues (e.g. for pd.d, T = uint64_t).
+@@ -1423,6 +1724,51 @@ RegisterValue sveSminv(srcValContainer& sourceValues, const uint16_t VL_bits) {
+   return {out, 256};
+ }
+ 
++/** Helper function for SVE instructions with the format `splice zd, pg, zn,
++ * zm`.
++ * T represents the type of sourceValues (e.g. for zn.d, T = uint64_t).
++ * Returns correctly formatted RegisterValue. */
++template <typename T>
++RegisterValue sveSplice(srcValContainer& sourceValues, const uint16_t VL_bits) {
++  const uint64_t* p = sourceValues[0].getAsVector<uint64_t>();
++  const T* n = sourceValues[1].getAsVector<T>();
++  const T* m = sourceValues[2].getAsVector<T>();
++
++  const uint16_t partition_num = VL_bits / (sizeof(T) * 8);
++  T out[256 / sizeof(T)] = {0};
++
++  // Get last active element
++  int lastElem = 0;
++  for (int i = partition_num - 1; i >= 0; i--) {
++    uint64_t shifted_active = 1ull << ((i % (64 / sizeof(T))) * sizeof(T));
++    if (p[i / (64 / sizeof(T))] & shifted_active) {
++      lastElem = i;
++      break;
++    }
++  }
++
++  // Extract region from n as denoted by predicate p. Copy region into the
++  // lowest elements of the destination operand
++  bool active = false;
++  int index = 0;
++  for (int i = 0; i <= lastElem; i++) {
++    uint64_t shifted_active = 1ull << ((i % (64 / sizeof(T))) * sizeof(T));
++    if (p[i / (64 / sizeof(T))] & shifted_active) active = true;
++    if (active) {
++      out[index] = n[i];
++      index++;
++    }
++  }
++
++  // Set any unassigned elements to the lowest elements in m
++  int elemsLeft = partition_num - index;
++  for (int i = 0; i < elemsLeft; i++) {
++    out[index] = m[i];
++    index++;
++  }
++  return {out, 256};
++}
++
+ /** Helper function for SVE instructions with the format `Sub zd, zn,
+  * zm`.
+  * T represents the type of sourceValues (e.g. for zn.d, T = uint64_t).
+@@ -1630,33 +1976,31 @@ RegisterValue sveUzp_vecs(srcValContainer& sourceValues, const uint16_t VL_bits,
+   return {out, 256};
+ }
+ 
+-/** Helper function for SVE instructions with the format `whilelo pd,
+- * <w,x>n, <w,x>m`.
++/** Helper function for SVE instructions with the format `while<ge, gt, hi, hs,
++ * le, lo, ls, lt> pd, <w,x>n, <w,x>m`.
+  * T represents the type of sourceValues n and m (e.g. for wn, T = uint32_t).
+  * P represents the type of operand p (e.g. for pd.b, P = uint8_t).
+  * Returns tuple of type [pred results (array of 4 uint64_t), nzcv]. */
+ template <typename T, typename P>
+-std::tuple<std::array<uint64_t, 4>, uint8_t> sveWhilelo(
+-    srcValContainer& sourceValues, const uint16_t VL_bits, bool calcNZCV) {
++std::tuple<std::array<uint64_t, 4>, uint8_t> sveWhile(
++    srcValContainer& sourceValues, const uint16_t VL_bits,
++    std::function<bool(T, T)> func) {
+   const T n = sourceValues[0].get<T>();
+   const T m = sourceValues[1].get<T>();
+ 
+   const uint16_t partition_num = VL_bits / (sizeof(P) * 8);
+   std::array<uint64_t, 4> out = {0, 0, 0, 0};
+-  uint16_t index = 0;
+ 
+   for (int i = 0; i < partition_num; i++) {
+     // Determine whether lane should be active and shift to align with
+     // element in predicate register.
+     uint64_t shifted_active =
+-        (n + i) < m ? 1ull << ((i % (64 / (sizeof(P))) * (sizeof(P)))) : 0;
+-    out[index / (64 / (sizeof(P)))] =
+-        out[index / (64 / (sizeof(P)))] | shifted_active;
+-    index++;
++        func((n + i), m) ? 1ull << ((i % (64 / (sizeof(P))) * (sizeof(P)))) : 0;
++    out[i / (64 / (sizeof(P)))] |= shifted_active;
+   }
+   // Byte count = sizeof(P) as destination predicate is predicate of P
+   // bytes.
+-  uint8_t nzcv = calcNZCV ? getNZCVfromPred(out, VL_bits, sizeof(P)) : 0;
++  uint8_t nzcv = getNZCVfromPred(out, VL_bits, sizeof(P));
+   return {out, nzcv};
+ }
+ 
+diff --git a/src/include/simeng/pipeline/ReorderBuffer.hh b/src/include/simeng/pipeline/ReorderBuffer.hh
+index 278a0174..7f7b3d13 100644
+--- a/src/include/simeng/pipeline/ReorderBuffer.hh
++++ b/src/include/simeng/pipeline/ReorderBuffer.hh
+@@ -118,6 +118,14 @@ class ReorderBuffer {
+    */
+   uint64_t pc_;
+ 
++  /** The address of the last instruction at the head of the ROB to check if
++   * it's stuck */
++  uint64_t last_inst_addr = 0;
++
++  /** A counter for how many cycles the same instruction has been at the head of
++   * the ROB */
++  uint64_t inst_repeat_counter = 0;
++
+   /** The sequence ID of the youngest instruction that should remain after the
+    * current flush. */
+   uint64_t flushAfter_;
+diff --git a/src/lib/arch/aarch64/ExceptionHandler.cc b/src/lib/arch/aarch64/ExceptionHandler.cc
+index 36aff037..371e0197 100644
+--- a/src/lib/arch/aarch64/ExceptionHandler.cc
++++ b/src/lib/arch/aarch64/ExceptionHandler.cc
+@@ -429,15 +429,16 @@ bool ExceptionHandler::init() {
+                       << std::endl;
+             return fatal();
+           }
+-          uint64_t retval = (pid == 0) ? 1 : 0;
+-          stateChange = {ChangeType::REPLACEMENT, {R0}, {retval}};
+-          stateChange.memoryAddresses.push_back({mask, 1});
++          uint64_t retval = static_cast<uint64_t>(bitmask);
++          stateChange = {ChangeType::REPLACEMENT, {R0}, {sizeof(retval)}};
++          stateChange.memoryAddresses.push_back({mask, 8});
+           stateChange.memoryAddressValues.push_back(bitmask);
+         } else {
+           stateChange = {ChangeType::REPLACEMENT, {R0}, {-1ll}};
+         }
+         break;
+       }
++
+       case 131: {  // tgkill
+         // TODO: Functionality temporarily omitted since simeng only has a
+         // single thread at the moment
+diff --git a/src/lib/arch/aarch64/InstructionMetadata.cc b/src/lib/arch/aarch64/InstructionMetadata.cc
+index 8fbfa74a..ba376db1 100644
+--- a/src/lib/arch/aarch64/InstructionMetadata.cc
++++ b/src/lib/arch/aarch64/InstructionMetadata.cc
+@@ -456,6 +456,14 @@ InstructionMetadata::InstructionMetadata(const cs_insn& insn)
+       [[fallthrough]];
+     case Opcode::AArch64_FCPY_ZPmI_S:
+       [[fallthrough]];
++    case Opcode::AArch64_CPY_ZPmV_B:
++      [[fallthrough]];
++    case Opcode::AArch64_CPY_ZPmV_H:
++      [[fallthrough]];
++    case Opcode::AArch64_CPY_ZPmV_S:
++      [[fallthrough]];
++    case Opcode::AArch64_CPY_ZPmV_D:
++      [[fallthrough]];
+     case Opcode::AArch64_FNEG_ZPmZ_D:
+       [[fallthrough]];
+     case Opcode::AArch64_FNEG_ZPmZ_S:
+@@ -1660,6 +1668,35 @@ InstructionMetadata::InstructionMetadata(const cs_insn& insn)
+       operands[4].access = CS_AC_READ;
+       operands[5].access = CS_AC_READ;
+       break;
++    case Opcode::AArch64_CLASTB_VPZ_D:
++      [[fallthrough]];
++    case Opcode::AArch64_CLASTB_VPZ_S:
++      [[fallthrough]];
++    case Opcode::AArch64_CLASTB_VPZ_H:
++      [[fallthrough]];
++    case Opcode::AArch64_CLASTB_VPZ_B: {
++      operands[0].access = CS_AC_READ | CS_AC_WRITE;
++      operands[1].access = CS_AC_READ;
++      operands[2].access = CS_AC_READ;
++      operands[3].access = CS_AC_READ;
++      break;
++    }
++    case Opcode::AArch64_PNEXT_D:
++      [[fallthrough]];
++    case Opcode::AArch64_PNEXT_S:
++      [[fallthrough]];
++    case Opcode::AArch64_PNEXT_H:
++      [[fallthrough]];
++    case Opcode::AArch64_PNEXT_B: {
++      operands[0].access = CS_AC_READ | CS_AC_WRITE;
++      operands[1].access = CS_AC_READ;
++      operands[2].access = CS_AC_READ;
++      // Doesn't identify implicit NZCV destination
++      implicitDestinationCount = 1;
++      implicitDestinations[0] = ARM64_REG_NZCV;
++      break;
++    }
++
+     case Opcode::AArch64_LD1_MXIPXX_H_D:
+       [[fallthrough]];
+     case Opcode::AArch64_LD1_MXIPXX_V_D:
+@@ -2040,10 +2077,10 @@ void InstructionMetadata::revertAliasing() {
+         // mov vd, Vn.T[index]; alias of dup vd, Vn.T[index]
+         return;
+       }
+-      if (opcode == Opcode ::AArch64_CPY_ZPzI_B ||
+-          opcode == Opcode ::AArch64_CPY_ZPzI_D ||
+-          opcode == Opcode ::AArch64_CPY_ZPzI_H ||
+-          opcode == Opcode ::AArch64_CPY_ZPzI_S) {
++      if (opcode == Opcode::AArch64_CPY_ZPzI_B ||
++          opcode == Opcode::AArch64_CPY_ZPzI_D ||
++          opcode == Opcode::AArch64_CPY_ZPzI_H ||
++          opcode == Opcode::AArch64_CPY_ZPzI_S) {
+         // mov zd.T, pg/z, #imm{, shift}; alias of cpy zd.T, pg/z, #imm{,
+         // shift}
+         operandCount = 3;
+@@ -2059,6 +2096,13 @@ void InstructionMetadata::revertAliasing() {
+                                                  : static_cast<int16_t>(value);
+         return;
+       }
++      if (opcode == Opcode::AArch64_CPY_ZPmV_B ||
++          opcode == Opcode::AArch64_CPY_ZPmV_D ||
++          opcode == Opcode::AArch64_CPY_ZPmV_H ||
++          opcode == Opcode::AArch64_CPY_ZPmV_S) {
++        // mov zd.T, pg/m, Vn; alias of cpy zd.T, pg/m, Vn;
++        return;
++      }
+       if (opcode == Opcode::AArch64_DUPM_ZI ||
+           opcode == Opcode::AArch64_DUP_ZI_B ||
+           opcode == Opcode::AArch64_DUP_ZI_D ||
+@@ -2396,6 +2440,19 @@ void InstructionMetadata::revertAliasing() {
+         // identical so nothing to alter between the instructions.
+         return;
+       }
++      if (opcode == Opcode::AArch64_EXTRWrri ||
++          opcode == Opcode::AArch64_EXTRXrri) {
++        // ror wd, ws, #shift; alias for : extr wd, ws, ws, #shift
++        operandCount = 4;
++        operands[3] = operands[2];
++        operands[2] = operands[1];
++
++        operands[2].type = ARM64_OP_REG;
++        operands[2].access = CS_AC_READ;
++        operands[3].type = ARM64_OP_IMM;
++        operands[3].access = CS_AC_READ;
++        return;
++      }
+       return aliasNYI();
+     case ARM64_INS_SBFIZ:
+       if (opcode == Opcode::AArch64_SBFMWri ||
+diff --git a/src/lib/arch/aarch64/Instruction_address.cc b/src/lib/arch/aarch64/Instruction_address.cc
+index 6ff4fd99..f69726c4 100644
+--- a/src/lib/arch/aarch64/Instruction_address.cc
++++ b/src/lib/arch/aarch64/Instruction_address.cc
+@@ -451,6 +451,10 @@ span<const memory::MemoryAccessTarget> Instruction::generateAddresses() {
+         setMemoryAddresses({{sourceValues_[0].get<uint64_t>(), 8}});
+         break;
+       }
++      case Opcode::AArch64_LDAXRB: {  // ldaxrb wt, [xn]
++        setMemoryAddresses({{sourceValues_[0].get<uint64_t>(), 1}});
++        break;
++      }
+       case Opcode::AArch64_LDAXRW: {  // ldaxr wd, [xn]
+         setMemoryAddresses({{sourceValues_[0].get<uint64_t>(), 4}});
+         break;
+@@ -749,6 +753,13 @@ span<const memory::MemoryAccessTarget> Instruction::generateAddresses() {
+         setMemoryAddresses({{sourceValues_[0].get<uint64_t>() + offset, 4}});
+         break;
+       }
++      case Opcode::AArch64_LDRSWroW: {  // ldrsw xt, [xn, wm{, extend
++                                        // {#amount}}]
++        uint64_t offset = extendOffset(sourceValues_[1].get<uint32_t>(),
++                                       metadata_.operands[1]);
++        setMemoryAddresses({{sourceValues_[0].get<uint64_t>() + offset, 4}});
++        break;
++      }
+       case Opcode::AArch64_LDRSWui: {  // ldrsw xt, [xn{, #pimm}]
+         uint64_t base =
+             sourceValues_[0].get<uint64_t>() + metadata_.operands[1].mem.disp;
+@@ -1350,6 +1361,10 @@ span<const memory::MemoryAccessTarget> Instruction::generateAddresses() {
+         setMemoryAddresses({{sourceValues_[1].get<uint64_t>(), 8}});
+         break;
+       }
++      case Opcode::AArch64_STLXRB: {  // stlxrb ws, wt, [xn]
++        setMemoryAddresses({{sourceValues_[1].get<uint64_t>(), 1}});
++        break;
++      }
+       case Opcode::AArch64_STLXRW: {  // stlxr ws, wt, [xn]
+         setMemoryAddresses({{sourceValues_[1].get<uint64_t>(), 4}});
+         break;
+diff --git a/src/lib/arch/aarch64/Instruction_execute.cc b/src/lib/arch/aarch64/Instruction_execute.cc
+index 6da1864e..d4040014 100644
+--- a/src/lib/arch/aarch64/Instruction_execute.cc
++++ b/src/lib/arch/aarch64/Instruction_execute.cc
+@@ -205,6 +205,10 @@ void Instruction::execute() {
+         results_[0] = vecSumElems_2ops<uint8_t, 8>(sourceValues_);
+         break;
+       }
++      case Opcode::AArch64_UADDLVv8i8v: {  // uaddlv hd, vn.8b
++        results_[0] = sveAddlv<uint32_t, uint8_t, 8>(sourceValues_);
++        break;
++      }
+       case Opcode::AArch64_ADDWri: {  // add wd, wn, #imm{, shift}
+         auto [result, nzcv] =
+             addShift_imm<uint32_t>(sourceValues_, metadata_, false);
+@@ -355,6 +359,30 @@ void Instruction::execute() {
+             sveAdr_packedOffsets<uint32_t>(sourceValues_, metadata_, VL_bits);
+         break;
+       }
++      case Opcode::AArch64_FTSMUL_ZZZ_S: {  // ftsmul zd.s, zn.s, zm.s
++        results_[0] = sveFTrigSMul<float, int32_t>(sourceValues_, VL_bits);
++        break;
++      }
++      case Opcode::AArch64_FTSMUL_ZZZ_D: {  // ftsmul zd.d, zn.d, zm.d
++        results_[0] = sveFTrigSMul<double, int64_t>(sourceValues_, VL_bits);
++        break;
++      }
++      case Opcode::AArch64_FTSSEL_ZZZ_S: {  // ftssel zd.s, zn.s, zm.s
++        results_[0] = sveFTrigSSel<float, int32_t>(sourceValues_, VL_bits);
++        break;
++      }
++      case Opcode::AArch64_FTSSEL_ZZZ_D: {  // ftssel zd.d, zn.d, zm.d
++        results_[0] = sveFTrigSSel<double, int64_t>(sourceValues_, VL_bits);
++        break;
++      }
++      case Opcode::AArch64_FTMAD_ZZI_S: {  // ftmad zd.s, zn.s, zm.s, #imm
++        results_[0] = sveFTrigMad<float>(sourceValues_, metadata_, VL_bits);
++        break;
++      }
++      case Opcode::AArch64_FTMAD_ZZI_D: {  // ftmad zd.s, zn.s, zm.s, #imm
++        results_[0] = sveFTrigMad<double>(sourceValues_, metadata_, VL_bits);
++        break;
++      }
+       case Opcode::AArch64_ANDSWri: {  // ands wd, wn, #imm
+         auto [result, nzcv] = logicOp_imm<uint32_t>(
+             sourceValues_, metadata_, true,
+@@ -675,6 +703,12 @@ void Instruction::execute() {
+             [](uint8_t x, uint8_t y) -> bool { return (x == y); });
+         break;
+       }
++      case Opcode::AArch64_CMEQv2i32rz: {  // cmeq vd.2s, vn.2s, #0
++        results_[0] = vecCompare<uint32_t, 2>(
++            sourceValues_, true,
++            [](uint32_t x, uint32_t y) -> bool { return (x == y); });
++        break;
++      }
+       case Opcode::AArch64_CMEQv4i32: {  // cmeq vd.4s, vn.4s, vm.4s
+         results_[0] = vecCompare<uint32_t, 4>(
+             sourceValues_, false,
+@@ -693,6 +727,12 @@ void Instruction::execute() {
+             [](int8_t x, int8_t y) -> bool { return (x == y); });
+         break;
+       }
++      case Opcode::AArch64_CMHIv2i32: {  // cmhi vd.2s, vn.2s, vm.2s
++        results_[0] = vecCompare<uint32_t, 2>(
++            sourceValues_, false,
++            [](uint32_t x, uint32_t y) -> bool { return (x > y); });
++        break;
++      }
+       case Opcode::AArch64_CMHIv4i32: {  // cmhi vd.4s, vn.4s, vm.4s
+         results_[0] = vecCompare<uint32_t, 4>(
+             sourceValues_, false,
+@@ -833,6 +873,38 @@ void Instruction::execute() {
+         results_[1] = output;
+         break;
+       }
++      case Opcode::AArch64_CMPHS_PPzZZ_B: {  // cmphs pd.b, pg/z, zn.b, zm.b
++        auto [output, nzcv] = sveCmpPredicated_toPred<uint8_t>(
++            sourceValues_, metadata_, VL_bits, true,
++            [](uint8_t x, uint8_t y) -> bool { return x >= y; });
++        results_[0] = nzcv;
++        results_[1] = output;
++        break;
++      }
++      case Opcode::AArch64_CMPHS_PPzZZ_D: {  // cmphs pd.d, pg/z, zn.d, zm.d
++        auto [output, nzcv] = sveCmpPredicated_toPred<uint64_t>(
++            sourceValues_, metadata_, VL_bits, true,
++            [](uint64_t x, uint64_t y) -> bool { return x >= y; });
++        results_[0] = nzcv;
++        results_[1] = output;
++        break;
++      }
++      case Opcode::AArch64_CMPHS_PPzZZ_H: {  // cmphs pd.h, pg/z, zn.h, zm.h
++        auto [output, nzcv] = sveCmpPredicated_toPred<uint16_t>(
++            sourceValues_, metadata_, VL_bits, true,
++            [](uint16_t x, uint16_t y) -> bool { return x >= y; });
++        results_[0] = nzcv;
++        results_[1] = output;
++        break;
++      }
++      case Opcode::AArch64_CMPHS_PPzZZ_S: {  // cmphs pd.s, pg/z, zn.s, zm.s
++        auto [output, nzcv] = sveCmpPredicated_toPred<uint32_t>(
++            sourceValues_, metadata_, VL_bits, true,
++            [](uint32_t x, uint32_t y) -> bool { return x >= y; });
++        results_[0] = nzcv;
++        results_[1] = output;
++        break;
++      }
+       case Opcode::AArch64_CMPNE_PPzZI_B: {  // cmpne pd.b, pg/z. zn.b, #imm
+         auto [output, nzcv] = sveCmpPredicated_toPred<int8_t>(
+             sourceValues_, metadata_, VL_bits, true,
+@@ -949,6 +1021,22 @@ void Instruction::execute() {
+         results_[0] = sveCpy_imm<int32_t>(sourceValues_, metadata_, VL_bits);
+         break;
+       }
++      case Opcode::AArch64_CPY_ZPmV_B: {  // cpy zd.b, pg/m, vn.b
++        results_[0] = sveCpy_Scalar<int8_t>(sourceValues_, metadata_, VL_bits);
++        break;
++      }
++      case Opcode::AArch64_CPY_ZPmV_D: {  // cpy zd.d, pg/m, vn.d
++        results_[0] = sveCpy_Scalar<int64_t>(sourceValues_, metadata_, VL_bits);
++        break;
++      }
++      case Opcode::AArch64_CPY_ZPmV_H: {  // cpy zd.h, pg/m, vn.h
++        results_[0] = sveCpy_Scalar<int16_t>(sourceValues_, metadata_, VL_bits);
++        break;
++      }
++      case Opcode::AArch64_CPY_ZPmV_S: {  // cpy zd.s, pg/m, vn.s
++        results_[0] = sveCpy_Scalar<int32_t>(sourceValues_, metadata_, VL_bits);
++        break;
++      }
+       case Opcode::AArch64_DUPi32: {  // dup vd, vn.s[index]
+         results_[0] =
+             vecDup_gprOrIndex<uint32_t, 1>(sourceValues_, metadata_, false);
+@@ -1751,6 +1839,10 @@ void Instruction::execute() {
+         results_[0] = vecFDiv<double, 2>(sourceValues_);
+         break;
+       }
++      case Opcode::AArch64_FDIVv4f32: {  // fdiv vd.4s, vn.4s, vm.4s
++        results_[0] = vecFDiv<float, 4>(sourceValues_);
++        break;
++      }
+       case Opcode::AArch64_FDUP_ZI_D: {  // fdup zd.d, #imm
+         results_[0] =
+             sveDup_immOrScalar<double>(sourceValues_, metadata_, VL_bits, true);
+@@ -2556,6 +2648,38 @@ void Instruction::execute() {
+             vecInsIndex_gpr<uint8_t, uint32_t, 16>(sourceValues_, metadata_);
+         break;
+       }
++      case Opcode::AArch64_LASTB_VPZ_D: {  // lastb dd, pg, zn.d
++        results_[0] = sveLastBScalar<uint64_t>(sourceValues_, VL_bits);
++        break;
++      }
++      case Opcode::AArch64_LASTB_VPZ_S: {  // lastb sd, pg, zn.s
++        results_[0] = sveLastBScalar<uint32_t>(sourceValues_, VL_bits);
++        break;
++      }
++      case Opcode::AArch64_LASTB_VPZ_H: {  // lastb hd, pg, zn.h
++        results_[0] = sveLastBScalar<uint16_t>(sourceValues_, VL_bits);
++        break;
++      }
++      case Opcode::AArch64_LASTB_VPZ_B: {  // lastb bd, pg, zn.b
++        results_[0] = sveLastBScalar<uint8_t>(sourceValues_, VL_bits);
++        break;
++      }
++      case Opcode::AArch64_CLASTB_VPZ_D: {  // clastb dd, pg, dn, zn.d
++        results_[0] = sveCLastBScalar<uint64_t>(sourceValues_, VL_bits);
++        break;
++      }
++      case Opcode::AArch64_CLASTB_VPZ_S: {  // clastb sd, pg, sn, zn.s
++        results_[0] = sveCLastBScalar<uint32_t>(sourceValues_, VL_bits);
++        break;
++      }
++      case Opcode::AArch64_CLASTB_VPZ_H: {  // clastb hd, pg, hn, zn.h
++        results_[0] = sveCLastBScalar<uint16_t>(sourceValues_, VL_bits);
++        break;
++      }
++      case Opcode::AArch64_CLASTB_VPZ_B: {  // clastb bd, pg, bn, zn.b
++        results_[0] = sveCLastBScalar<uint8_t>(sourceValues_, VL_bits);
++        break;
++      }
+       case Opcode::AArch64_LD1_MXIPXX_H_D: {  // ld1d {zath.d[ws, #imm]}, pg/z,
+                                               // [<xn|sp>{, xm, lsl #3}]
+         // SME, LOAD
+@@ -3324,6 +3448,11 @@ void Instruction::execute() {
+         results_[0] = memoryData_[0];
+         break;
+       }
++      case Opcode::AArch64_LDAXRB: {  // ldaxrb wt, [xn]
++        // LOAD
++        results_[0] = memoryData_[0].zeroExtend(1, 8);
++        break;
++      }
+       case Opcode::AArch64_LDAXRW: {  // ldaxr wd, [xn]
+         // LOAD
+         results_[0] = memoryData_[0].zeroExtend(4, 8);
+@@ -3597,6 +3726,12 @@ void Instruction::execute() {
+         results_[0] = static_cast<int64_t>(memoryData_[0].get<int32_t>());
+         break;
+       }
++      case Opcode::AArch64_LDRSWroW: {  // ldrsw xt, [xn, wm, {extend
++                                        // {#amount}}]
++        // LOAD
++        results_[0] = static_cast<int64_t>(memoryData_[0].get<int32_t>());
++        break;
++      }
+       case Opcode::AArch64_LDRSWui: {  // ldrsw xt, [xn{, #pimm}]
+         // LOAD
+         results_[0] = static_cast<int64_t>(memoryData_[0].get<int32_t>());
+@@ -4002,11 +4137,49 @@ void Instruction::execute() {
+             [](uint8_t x, uint8_t y) -> uint8_t { return x | y; });
+         break;
+       }
++      case Opcode::AArch64_ORNv8i8: {  // orn vd.8b, vn.8b, vn.8b
++        results_[0] = vecLogicOp_3vecs<uint8_t, 8>(
++            sourceValues_,
++            [](uint8_t x, uint8_t y) -> uint8_t { return x | (~y); });
++        break;
++      }
+       case Opcode::AArch64_PFALSE: {  // pfalse pd.b
+         uint64_t out[4] = {0, 0, 0, 0};
+         results_[0] = out;
+         break;
+       }
++      case Opcode::AArch64_PFIRST_B: {  // pfirst pdn.b, pg, pdn.b
++        results_[0] = svePfirst(sourceValues_, VL_bits);
++        break;
++      }
++      case Opcode::AArch64_PNEXT_B: {  // pnext pdn.b, pv, pdn.b
++        auto [result, nzcv] =
++            svePnext<uint8_t>(sourceValues_, metadata_, VL_bits);
++        results_[0] = nzcv;
++        results_[1] = result;
++        break;
++      }
++      case Opcode::AArch64_PNEXT_H: {  // pnext pdn.h, pv, pdn.h
++        auto [result, nzcv] =
++            svePnext<uint16_t>(sourceValues_, metadata_, VL_bits);
++        results_[0] = nzcv;
++        results_[1] = result;
++        break;
++      }
++      case Opcode::AArch64_PNEXT_S: {  // pnext pdn.s, pv, pdn.s
++        auto [result, nzcv] =
++            svePnext<uint32_t>(sourceValues_, metadata_, VL_bits);
++        results_[0] = nzcv;
++        results_[1] = result;
++        break;
++      }
++      case Opcode::AArch64_PNEXT_D: {  // pnext pdn.d, pv, pdn.d
++        auto [result, nzcv] =
++            svePnext<uint64_t>(sourceValues_, metadata_, VL_bits);
++        results_[0] = nzcv;
++        results_[1] = result;
++        break;
++      }
+       case Opcode::AArch64_PRFMui: {  // prfm op, [xn, xm{, extend{, #amount}}]
+         break;
+       }
+@@ -4295,34 +4468,88 @@ void Instruction::execute() {
+         results_[0] = maddl_4ops<int64_t, int32_t>(sourceValues_);
+         break;
+       }
++      case Opcode::AArch64_SMAX_ZI_D: {  // smax zdn.d, zdn.d, #imm
++        results_[0] = sveMax_vecImm<int64_t>(sourceValues_, metadata_, VL_bits);
++        break;
++      }
+       case Opcode::AArch64_SMAX_ZI_S: {  // smax zdn.s, zdn.s, #imm
+         results_[0] = sveMax_vecImm<int32_t>(sourceValues_, metadata_, VL_bits);
+         break;
+       }
++      case Opcode::AArch64_SMAX_ZI_H: {  // smax zdn.h, zdn.h, #imm
++        results_[0] = sveMax_vecImm<int16_t>(sourceValues_, metadata_, VL_bits);
++        break;
++      }
++      case Opcode::AArch64_SMAX_ZI_B: {  // smax zdn.b, zdn.b, #imm
++        results_[0] = sveMax_vecImm<int8_t>(sourceValues_, metadata_, VL_bits);
++        break;
++      }
++      case Opcode::AArch64_SMAX_ZPmZ_D: {  // smax zd.d, pg/m, zn.d, zm.d
++        results_[0] = sveMaxPredicated_vecs<int64_t>(sourceValues_, VL_bits);
++        break;
++      }
+       case Opcode::AArch64_SMAX_ZPmZ_S: {  // smax zd.s, pg/m, zn.s, zm.s
+         results_[0] = sveMaxPredicated_vecs<int32_t>(sourceValues_, VL_bits);
+         break;
+       }
++      case Opcode::AArch64_SMAX_ZPmZ_H: {  // smax zd.h, pg/m, zn.h, zm.h
++        results_[0] = sveMaxPredicated_vecs<int16_t>(sourceValues_, VL_bits);
++        break;
++      }
++      case Opcode::AArch64_SMAX_ZPmZ_B: {  // smax zd.b, pg/m, zn.b, zm.b
++        results_[0] = sveMaxPredicated_vecs<int8_t>(sourceValues_, VL_bits);
++        break;
++      }
+       case Opcode::AArch64_SMAXv4i32: {  // smax vd.4s, vn.4s, vm.4s
+         results_[0] = vecLogicOp_3vecs<int32_t, 4>(
+             sourceValues_,
+             [](int32_t x, int32_t y) -> int32_t { return std::max(x, y); });
+         break;
+       }
++      case Opcode::AArch64_SMINV_VPZ_D: {  // sminv sd, pg, zn.d
++        results_[0] = sveSminv<int64_t>(sourceValues_, VL_bits);
++        break;
++      }
+       case Opcode::AArch64_SMINV_VPZ_S: {  // sminv sd, pg, zn.s
+         results_[0] = sveSminv<int32_t>(sourceValues_, VL_bits);
+         break;
+       }
++      case Opcode::AArch64_SMINV_VPZ_H: {  // sminv sd, pg, zn.h
++        results_[0] = sveSminv<int16_t>(sourceValues_, VL_bits);
++        break;
++      }
++      case Opcode::AArch64_SMINV_VPZ_B: {  // sminv sd, pg, zn.b
++        results_[0] = sveSminv<int8_t>(sourceValues_, VL_bits);
++        break;
++      }
+       case Opcode::AArch64_SMINVv4i32v: {  // sminv sd, vn.4s
+         results_[0] = vecMinv_2ops<int32_t, 4>(sourceValues_);
+         break;
+       }
++      case Opcode::AArch64_SMIN_ZPmZ_D: {  // smin zd.d, pg/m, zn.d, zm.d
++        results_[0] = sveLogicOpPredicated_3vecs<int64_t>(
++            sourceValues_, VL_bits,
++            [](int64_t x, int64_t y) -> int64_t { return std::min(x, y); });
++        break;
++      }
+       case Opcode::AArch64_SMIN_ZPmZ_S: {  // smin zd.s, pg/m, zn.s, zm.s
+         results_[0] = sveLogicOpPredicated_3vecs<int32_t>(
+             sourceValues_, VL_bits,
+             [](int32_t x, int32_t y) -> int32_t { return std::min(x, y); });
+         break;
+       }
++      case Opcode::AArch64_SMIN_ZPmZ_H: {  // smin zd.h, pg/m, zn.h, zm.h
++        results_[0] = sveLogicOpPredicated_3vecs<int16_t>(
++            sourceValues_, VL_bits,
++            [](int16_t x, int16_t y) -> int16_t { return std::min(x, y); });
++        break;
++      }
++      case Opcode::AArch64_SMIN_ZPmZ_B: {  // smin zd.b, pg/m, zn.b, zm.b
++        results_[0] = sveLogicOpPredicated_3vecs<int8_t>(
++            sourceValues_, VL_bits,
++            [](int8_t x, int8_t y) -> int8_t { return std::min(x, y); });
++        break;
++      }
+       case Opcode::AArch64_SMINv4i32: {  // smin vd.4s, vn.4s, vm.4s
+         results_[0] = vecLogicOp_3vecs<int32_t, 4>(
+             sourceValues_,
+@@ -4354,6 +4581,14 @@ void Instruction::execute() {
+                             sourceValues_[1].get<uint64_t>());
+         break;
+       }
++      case Opcode::AArch64_SPLICE_ZPZ_D: {  // splice zdn.d, pv, zdn.t, zm.d
++        results_[0] = sveSplice<double>(sourceValues_, VL_bits);
++        break;
++      }
++      case Opcode::AArch64_SPLICE_ZPZ_S: {  // splice zdn.s, pv, zdn.t, zm.s
++        results_[0] = sveSplice<float>(sourceValues_, VL_bits);
++        break;
++      }
+       case Opcode::AArch64_SSHLLv2i32_shift: {  // sshll vd.2d, vn.2s, #imm
+         results_[0] = vecShllShift_vecImm<int64_t, int32_t, 2>(
+             sourceValues_, metadata_, false);
+@@ -4935,6 +5170,7 @@ void Instruction::execute() {
+         memoryData_[0] = sourceValues_[0];
+         break;
+       }
++      case Opcode::AArch64_STLXRB:    // stlxrb ws, wt, [xn]
+       case Opcode::AArch64_STLXRW:    // stlxr ws, wt, [xn]
+       case Opcode::AArch64_STLXRX: {  // stlxr ws, xt, [xn]
+         // STORE
+@@ -5558,6 +5794,26 @@ void Instruction::execute() {
+         results_[0] = vecUMinP<uint8_t, 16>(sourceValues_);
+         break;
+       }
++      case Opcode::AArch64_UMAXVv16i8v: {  // umaxv bd, vn.16b
++        results_[0] = sveUMaxV<uint8_t, 16>(sourceValues_);
++        break;
++      }
++      case Opcode::AArch64_UMAXVv4i16v: {  // umaxv hd, vn.4h
++        results_[0] = sveUMaxV<uint16_t, 4>(sourceValues_);
++        break;
++      }
++      case Opcode::AArch64_UMAXVv4i32v: {  // umaxv sd, vn.4s
++        results_[0] = sveUMaxV<uint32_t, 4>(sourceValues_);
++        break;
++      }
++      case Opcode::AArch64_UMAXVv8i16v: {  // umaxv hd, vn.8h
++        results_[0] = sveUMaxV<uint16_t, 8>(sourceValues_);
++        break;
++      }
++      case Opcode::AArch64_UMAXVv8i8v: {  // umaxv bd, vn.8b
++        results_[0] = sveUMaxV<uint8_t, 8>(sourceValues_);
++        break;
++      }
+       case Opcode::AArch64_UMOVvi32_idx0:  // umov wd, vn.s[0]
+       case Opcode::AArch64_UMOVvi32: {     // umov wd, vn.s[index]
+         const uint32_t* vec = sourceValues_[0].getAsVector<uint32_t>();
+@@ -5716,85 +5972,129 @@ void Instruction::execute() {
+         break;
+       }
+       case Opcode::AArch64_WHILELO_PWW_B: {  // whilelo pd.b, wn, wm
+-        auto [output, nzcv] =
+-            sveWhilelo<uint32_t, uint8_t>(sourceValues_, VL_bits, true);
++        auto [output, nzcv] = sveWhile<uint32_t, uint8_t>(
++            sourceValues_, VL_bits,
++            [](uint32_t x, uint32_t y) -> bool { return x < y; });
+         results_[0] = nzcv;
+         results_[1] = output;
+         break;
+       }
+       case Opcode::AArch64_WHILELO_PWW_D: {  // whilelo pd.d, wn, wm
+-        auto [output, nzcv] =
+-            sveWhilelo<uint32_t, uint64_t>(sourceValues_, VL_bits, true);
++        auto [output, nzcv] = sveWhile<uint32_t, uint64_t>(
++            sourceValues_, VL_bits,
++            [](uint32_t x, uint32_t y) -> bool { return x < y; });
+         results_[0] = nzcv;
+         results_[1] = output;
+         break;
+       }
+       case Opcode::AArch64_WHILELO_PWW_H: {  // whilelo pd.h, wn, wm
+-        auto [output, nzcv] =
+-            sveWhilelo<uint32_t, uint16_t>(sourceValues_, VL_bits, true);
++        auto [output, nzcv] = sveWhile<uint32_t, uint16_t>(
++            sourceValues_, VL_bits,
++            [](uint32_t x, uint32_t y) -> bool { return x < y; });
+         results_[0] = nzcv;
+         results_[1] = output;
+         break;
+       }
+       case Opcode::AArch64_WHILELO_PWW_S: {  // whilelo pd.s, wn, wm
+-        auto [output, nzcv] =
+-            sveWhilelo<uint32_t, uint32_t>(sourceValues_, VL_bits, true);
++        auto [output, nzcv] = sveWhile<uint32_t, uint32_t>(
++            sourceValues_, VL_bits,
++            [](uint32_t x, uint32_t y) -> bool { return x < y; });
+         results_[0] = nzcv;
+         results_[1] = output;
+         break;
+       }
+       case Opcode::AArch64_WHILELO_PXX_B: {  // whilelo pd.b, xn, xm
+-        auto [output, nzcv] =
+-            sveWhilelo<uint64_t, uint8_t>(sourceValues_, VL_bits, true);
++        auto [output, nzcv] = sveWhile<uint64_t, uint8_t>(
++            sourceValues_, VL_bits,
++            [](uint64_t x, uint64_t y) -> bool { return x < y; });
+         results_[0] = nzcv;
+         results_[1] = output;
+         break;
+       }
+       case Opcode::AArch64_WHILELO_PXX_D: {  // whilelo pd.d, xn, xm
+-        auto [output, nzcv] =
+-            sveWhilelo<uint64_t, uint64_t>(sourceValues_, VL_bits, true);
++        auto [output, nzcv] = sveWhile<uint64_t, uint64_t>(
++            sourceValues_, VL_bits,
++            [](uint64_t x, uint64_t y) -> bool { return x < y; });
+         results_[0] = nzcv;
+         results_[1] = output;
+         break;
+       }
+       case Opcode::AArch64_WHILELO_PXX_H: {  // whilelo pd.h, xn, xm
+-        auto [output, nzcv] =
+-            sveWhilelo<uint64_t, uint16_t>(sourceValues_, VL_bits, true);
++        auto [output, nzcv] = sveWhile<uint64_t, uint16_t>(
++            sourceValues_, VL_bits,
++            [](uint64_t x, uint64_t y) -> bool { return x < y; });
+         results_[0] = nzcv;
+         results_[1] = output;
+         break;
+       }
+       case Opcode::AArch64_WHILELO_PXX_S: {  // whilelo pd.s, xn, xm
+-        auto [output, nzcv] =
+-            sveWhilelo<uint64_t, uint32_t>(sourceValues_, VL_bits, true);
++        auto [output, nzcv] = sveWhile<uint64_t, uint32_t>(
++            sourceValues_, VL_bits,
++            [](uint64_t x, uint64_t y) -> bool { return x < y; });
++        results_[0] = nzcv;
++        results_[1] = output;
++        break;
++      }
++      case Opcode::AArch64_WHILELS_PXX_B: {  // whilels pd.b, xn, xm
++        auto [output, nzcv] = sveWhile<uint64_t, uint8_t>(
++            sourceValues_, VL_bits,
++            [](uint64_t x, uint64_t y) -> bool { return x <= y; });
++        results_[0] = nzcv;
++        results_[1] = output;
++        break;
++      }
++      case Opcode::AArch64_WHILELS_PXX_D: {  // whilels pd.d, xn, xm
++        auto [output, nzcv] = sveWhile<uint64_t, uint64_t>(
++            sourceValues_, VL_bits,
++            [](uint64_t x, uint64_t y) -> bool { return x <= y; });
++        results_[0] = nzcv;
++        results_[1] = output;
++        break;
++      }
++      case Opcode::AArch64_WHILELS_PXX_H: {  // whilels pd.h, xn, xm
++        auto [output, nzcv] = sveWhile<uint64_t, uint16_t>(
++            sourceValues_, VL_bits,
++            [](uint64_t x, uint64_t y) -> bool { return x <= y; });
++        results_[0] = nzcv;
++        results_[1] = output;
++        break;
++      }
++      case Opcode::AArch64_WHILELS_PXX_S: {  // whilels pd.s, xn, xm
++        auto [output, nzcv] = sveWhile<uint64_t, uint32_t>(
++            sourceValues_, VL_bits,
++            [](uint64_t x, uint64_t y) -> bool { return x <= y; });
+         results_[0] = nzcv;
+         results_[1] = output;
+         break;
+       }
+       case Opcode::AArch64_WHILELT_PXX_B: {  // whilelt pd.b, xn, xm
+-        auto [output, nzcv] =
+-            sveWhilelo<int64_t, int8_t>(sourceValues_, VL_bits, true);
++        auto [output, nzcv] = sveWhile<int64_t, int8_t>(
++            sourceValues_, VL_bits,
++            [](int64_t x, int64_t y) -> bool { return x < y; });
+         results_[0] = nzcv;
+         results_[1] = output;
+         break;
+       }
+       case Opcode::AArch64_WHILELT_PXX_D: {  // whilelt pd.d, xn, xm
+-        auto [output, nzcv] =
+-            sveWhilelo<int64_t, int64_t>(sourceValues_, VL_bits, true);
++        auto [output, nzcv] = sveWhile<int64_t, int64_t>(
++            sourceValues_, VL_bits,
++            [](int64_t x, int64_t y) -> bool { return x < y; });
+         results_[0] = nzcv;
+         results_[1] = output;
+         break;
+       }
+       case Opcode::AArch64_WHILELT_PXX_H: {  // whilelt pd.h, xn, xm
+-        auto [output, nzcv] =
+-            sveWhilelo<int64_t, int16_t>(sourceValues_, VL_bits, true);
++        auto [output, nzcv] = sveWhile<int64_t, int16_t>(
++            sourceValues_, VL_bits,
++            [](int64_t x, int64_t y) -> bool { return x < y; });
+         results_[0] = nzcv;
+         results_[1] = output;
+         break;
+       }
+       case Opcode::AArch64_WHILELT_PXX_S: {  // whilelt pd.s, xn, xm
+-        auto [output, nzcv] =
+-            sveWhilelo<int64_t, int32_t>(sourceValues_, VL_bits, true);
++        auto [output, nzcv] = sveWhile<int64_t, int32_t>(
++            sourceValues_, VL_bits,
++            [](int64_t x, int64_t y) -> bool { return x < y; });
+         results_[0] = nzcv;
+         results_[1] = output;
+         break;
+diff --git a/src/lib/pipeline/ReorderBuffer.cc b/src/lib/pipeline/ReorderBuffer.cc
+index 32889bf9..28a11a2c 100644
+--- a/src/lib/pipeline/ReorderBuffer.cc
++++ b/src/lib/pipeline/ReorderBuffer.cc
+@@ -36,20 +36,18 @@ void ReorderBuffer::reserve(const std::shared_ptr<Instruction>& insn) {
+ void ReorderBuffer::commitMicroOps(uint64_t insnId) {
+   if (buffer_.size()) {
+     size_t index = 0;
+-    uint64_t firstOp = UINT64_MAX;
++    int64_t firstOp = -1;
+     bool validForCommit = false;
+-    bool foundFirstInstance = false;
+ 
+     // Find first instance of uop belonging to macro-op instruction
+     for (; index < buffer_.size(); index++) {
+       if (buffer_[index]->getInstructionId() == insnId) {
+         firstOp = index;
+-        foundFirstInstance = true;
+         break;
+       }
+     }
+ 
+-    if (foundFirstInstance) {
++    if (firstOp > -1) {
+       // If found, see if all uops are committable
+       for (; index < buffer_.size(); index++) {
+         if (buffer_[index]->getInstructionId() != insnId) break;
+@@ -62,7 +60,7 @@ void ReorderBuffer::commitMicroOps(uint64_t insnId) {
+       }
+       if (!validForCommit) return;
+ 
+-      assert(firstOp != UINT64_MAX && "firstOp hasn't been populated");
++      assert(firstOp > -1 && "firstOp hasn't been populated");
+       // No early return thus all uops are committable
+       for (; firstOp < buffer_.size(); firstOp++) {
+         if (buffer_[firstOp]->getInstructionId() != insnId) break;
+@@ -81,6 +79,20 @@ unsigned int ReorderBuffer::commit(uint64_t maxCommitSize) {
+   unsigned int n;
+   for (n = 0; n < maxCommits; n++) {
+     auto& uop = buffer_[0];
++    if (uop->getInstructionAddress() == last_inst_addr) {
++      inst_repeat_counter++;
++    } else {
++      inst_repeat_counter = 0;
++    }
++    if (inst_repeat_counter > 10000000) {
++      std::cout
++          << "Infinite loop detected in rob commit at instruction address "
++          << std::hex << uop->getInstructionAddress() << std::dec << " ("
++          << uop->getMicroOpIndex() << "). Killing.\n";
++      exit(1);
++    }
++    last_inst_addr = uop->getInstructionAddress();
++
+     if (!uop->canCommit()) {
+       break;
+     }
+diff --git a/test/regression/aarch64/Syscall.cc b/test/regression/aarch64/Syscall.cc
+index 0866c278..c7c19eb9 100644
+--- a/test/regression/aarch64/Syscall.cc
++++ b/test/regression/aarch64/Syscall.cc
+@@ -1080,7 +1080,7 @@ TEST_P(Syscall, sched_getaffinity) {
+     )");
+   EXPECT_EQ(getGeneralRegister<int64_t>(21), -1);
+   EXPECT_EQ(getGeneralRegister<int64_t>(22), -1);
+-  EXPECT_EQ(getGeneralRegister<int64_t>(23), 1);
++  EXPECT_EQ(getGeneralRegister<int64_t>(23), 8);
+ }
+ 
+ // TODO: write tgkill test
+diff --git a/test/regression/aarch64/instructions/bitmanip.cc b/test/regression/aarch64/instructions/bitmanip.cc
+index 69e9943f..a6136541 100644
+--- a/test/regression/aarch64/instructions/bitmanip.cc
++++ b/test/regression/aarch64/instructions/bitmanip.cc
+@@ -70,11 +70,17 @@ TEST_P(InstBitmanip, extr) {
+     extr w4, w1, w2, 4
+     extr w5, w1, w2, 24
+     extr w6, w1, w2, 31
++
++    # Check alias
++    ror w7, w1, 31
++    ror w8, w1, 24
+   )");
+   EXPECT_EQ(getGeneralRegister<uint32_t>(3), 0x12345678);
+   EXPECT_EQ(getGeneralRegister<uint32_t>(4), 0xF1234567);
+   EXPECT_EQ(getGeneralRegister<uint32_t>(5), 0xADBEEF12);
+   EXPECT_EQ(getGeneralRegister<uint32_t>(6), 0xBD5B7DDE);
++  EXPECT_EQ(getGeneralRegister<uint32_t>(7), 0xBD5B7DDF);
++  EXPECT_EQ(getGeneralRegister<uint32_t>(8), 0xADBEEFDE);
+ 
+   // 64-bit
+   initialHeapData_.resize(16);
+diff --git a/test/regression/aarch64/instructions/load.cc b/test/regression/aarch64/instructions/load.cc
+index 09269eeb..05ffdd90 100644
+--- a/test/regression/aarch64/instructions/load.cc
++++ b/test/regression/aarch64/instructions/load.cc
+@@ -1277,17 +1277,19 @@ TEST_P(InstLoad, ldrsw) {
+     mov x0, 0
+     mov x8, 214
+     svc #0
+-    mov x5, 1
++    mov x6, 1
+     # Load 32-bit values from heap and sign-extend to 64-bits
+     ldrsw x1, [x0, #4]
+     ldrsw x2, [x0], #4
+     ldrsw x3, [x0]
+-    ldrsw x4, [x0, x5, lsl #2]
++    ldrsw x4, [x0, x6, lsl #2]
++    ldrsw x5, [x0, w6, uxtw #2]
+   )");
+   EXPECT_EQ(getGeneralRegister<int64_t>(1), INT32_MAX);
+   EXPECT_EQ(getGeneralRegister<int64_t>(2), -2);
+   EXPECT_EQ(getGeneralRegister<int64_t>(3), INT32_MAX);
+   EXPECT_EQ(getGeneralRegister<int64_t>(4), -5);
++  EXPECT_EQ(getGeneralRegister<int64_t>(5), -5);
+ 
+   // ldursw
+   RUN_AARCH64(R"(
+diff --git a/test/regression/aarch64/instructions/sve.cc b/test/regression/aarch64/instructions/sve.cc
+index 702979b2..06e8c755 100644
+--- a/test/regression/aarch64/instructions/sve.cc
++++ b/test/regression/aarch64/instructions/sve.cc
+@@ -1543,6 +1543,144 @@ TEST_P(InstSve, cpy) {
+   CHECK_NEON(4, int64_t, fillNeon<int64_t>({12}, VL / 8));
+   CHECK_NEON(5, int64_t,
+              fillNeon<int64_t>({static_cast<int16_t>(-2048)}, VL / 16));
++
++  // SIMD & FP scalar
++  // Tests are different for 8/16 bit vs 32/64 bit due to the lack of fmov
++  // support for h and b registers
++  // 8-bit
++  RUN_AARCH64(R"(
++      mov x0, #0
++      mov x1, #2
++      addvl x0, x0, #1
++      sdiv x0, x0, x1
++
++      ptrue p0.b
++      whilelo p1.b, xzr, x0
++
++      cpy z6.b, p0/z, #10
++      cpy z7.b, p0/z, #-8
++      cpy z8.b, p0/z, #12
++      cpy z9.b, p0/z, #-16
++      cpy z10.b, p0/z, #12
++      cpy z11.b, p0/z, #-8
++
++      cpy z0.b, p0/m, b6
++      cpy z1.b, p0/m, b7
++      cpy z2.b, p1/m, b8
++      cpy z3.b, p1/m, b9
++
++      # Test Alias
++      mov z4.b, p0/m, b10
++      mov z5.b, p1/m, b11
++    )");
++  CHECK_NEON(0, int8_t, fillNeon<int8_t>({10}, VL / 8));
++  CHECK_NEON(1, int8_t, fillNeon<int8_t>({-8}, VL / 8));
++  CHECK_NEON(2, int8_t, fillNeon<int8_t>({12}, VL / 16));
++  CHECK_NEON(3, int8_t, fillNeon<int8_t>({-16}, VL / 16));
++  CHECK_NEON(4, int8_t, fillNeon<int8_t>({12}, VL / 8));
++  CHECK_NEON(5, int8_t, fillNeon<int8_t>({-8}, VL / 16));
++
++  // 16-bit
++  RUN_AARCH64(R"(
++    mov x0, #0
++    mov x1, #4
++    addvl x0, x0, #1
++    sdiv x0, x0, x1
++
++    ptrue p0.h
++    whilelo p1.h, xzr, x0
++
++    cpy z6.h, p0/z, #10
++    cpy z7.h, p0/z, #8, lsl #8
++    cpy z8.h, p0/z, #-12
++    cpy z9.h, p0/z, #-16, lsl #8
++    cpy z10.h, p0/z, #12
++    cpy z11.h, p0/z, #-8, lsl #8
++
++    cpy z0.h, p0/m, h6
++    cpy z1.h, p0/m, h7
++    cpy z2.h, p1/m, h8
++    cpy z3.h, p1/m, h9
++
++    # Test Alias
++    mov z4.h, p0/m, h10
++    mov z5.h, p1/m, h11
++  )");
++  CHECK_NEON(0, int16_t, fillNeon<int16_t>({10}, VL / 8));
++  CHECK_NEON(1, int16_t,
++             fillNeon<int16_t>({static_cast<int16_t>(2048)}, VL / 8));
++  CHECK_NEON(2, int16_t, fillNeon<int16_t>({-12}, VL / 16));
++  CHECK_NEON(3, int16_t,
++             fillNeon<int16_t>({static_cast<int16_t>(-4096)}, VL / 16));
++  CHECK_NEON(4, int16_t, fillNeon<int16_t>({12}, VL / 8));
++  CHECK_NEON(5, int16_t,
++             fillNeon<int16_t>({static_cast<int16_t>(-2048)}, VL / 16));
++
++  // 32-bit
++  RUN_AARCH64(R"(
++    mov x0, #0
++    mov x1, #8
++    addvl x0, x0, #1
++    sdiv x0, x0, x1
++
++    ptrue p0.s
++    whilelo p1.s, xzr, x0
++
++    fmov s6, #10
++    fmov s7, #-8
++    fmov s8, #12
++    fmov s9, #-16
++    fmov s10, #12
++    fmov s11, #-8
++
++    cpy z0.s, p0/m, s6
++    cpy z1.s, p0/m, s7
++    cpy z2.s, p1/m, s8
++    cpy z3.s, p1/m, s9
++
++    # Test Alias
++    mov z4.S, p0/m, s10
++    mov z5.S, p1/m, s11
++  )");
++  CHECK_NEON(0, float, fillNeon<float>({10}, VL / 8));
++  CHECK_NEON(1, float, fillNeon<float>({static_cast<int16_t>(-8)}, VL / 8));
++  CHECK_NEON(2, float, fillNeon<float>({12}, VL / 16));
++  CHECK_NEON(3, float, fillNeon<float>({static_cast<int16_t>(-16)}, VL / 16));
++  CHECK_NEON(4, float, fillNeon<float>({12}, VL / 8));
++  CHECK_NEON(5, float, fillNeon<float>({static_cast<int16_t>(-8)}, VL / 16));
++
++  // 64-bit
++  RUN_AARCH64(R"(
++    mov x0, #0
++    mov x1, #16
++    addvl x0, x0, #1
++    sdiv x0, x0, x1
++
++    ptrue p0.d
++    whilelo p1.d, xzr, x0
++
++    fmov d6, #10
++    fmov d7, #-8
++    fmov d8, #12
++    fmov d9, #-16
++    fmov d10, #12
++    fmov d11, #-8
++
++    cpy z0.d, p0/m, d6
++    cpy z1.d, p0/m, d7
++    cpy z2.d, p1/m, d8
++    cpy z3.d, p1/m, d9
++
++    # Test Alias
++    mov z4.d, p0/m, d10
++    mov z5.d, p1/m, d11
++  )");
++  CHECK_NEON(0, double, fillNeon<double>({10}, VL / 8));
++  CHECK_NEON(1, double, fillNeon<double>({static_cast<int16_t>(-8)}, VL / 8));
++  CHECK_NEON(2, double, fillNeon<double>({12}, VL / 16));
++  CHECK_NEON(3, double, fillNeon<double>({static_cast<int16_t>(-16)}, VL / 16));
++  CHECK_NEON(4, double, fillNeon<double>({12}, VL / 8));
++  CHECK_NEON(5, double, fillNeon<double>({static_cast<int16_t>(-8)}, VL / 16));
+ }
+ 
+ TEST_P(InstSve, fcpy) {
+@@ -5657,6 +5795,106 @@ TEST_P(InstSve, ptrue) {
+   CHECK_PREDICATE(3, uint64_t, fillPred(VL / 8, {1}, 2));
+ }
+ 
++TEST_P(InstSve, pnext) {
++  initialHeapData_.resize(1024);
++  uint64_t* heap64 = reinterpret_cast<uint64_t*>(initialHeapData_.data());
++
++  //      B arrangement
++  // Allow 32 Byte space for each predicate register for when VL=2048
++  std::vector<uint64_t> src = {0xAAAA, 0x0, 0x0,    0x0, 0x0, 0x0,
++                               0x0,    0x0, 0xAA00, 0x0, 0x0, 0x0};
++  fillHeap<uint64_t>(heap64, src, 12);
++  RUN_AARCH64(R"(
++        # Get heap address
++        mov x0, 0
++        mov x8, 214
++        svc #0
++
++        ldr p2, [x0]
++        add x0, x0, #32
++        ldr p0, [x0]
++
++        pnext p0.b, p2, p0.b
++
++        ldr p1, [x0]
++        add x0, x0, #32
++        ldr p3, [x0]
++
++        pnext p1.b, p3, p1.b
++  )");
++  CHECK_PREDICATE(0, uint64_t,
++                  fillPredFromSource<uint64_t>({0x02, 0, 0, 0}, 32));
++  CHECK_PREDICATE(1, uint64_t,
++                  fillPredFromSource<uint64_t>({0x0200, 0, 0, 0}, 32));
++  EXPECT_EQ(getNZCV(), 0b0010);
++
++  //      H arrangement
++  src = {0x555, 0x0, 0x0, 0x0, 0x333, 0x0, 0x0, 0x0};
++  fillHeap<uint64_t>(heap64, src, 8);
++  RUN_AARCH64(R"(
++        # Get heap address
++        mov x0, 0
++        mov x8, 214
++        svc #0
++
++        ldr p1, [x0]
++        add x0, x0, #32
++        ldr p0, [x0]
++
++        pnext p0.h, p1, p0.h
++  )");
++  CHECK_PREDICATE(0, uint64_t,
++                  fillPredFromSource<uint64_t>({0x400, 0, 0, 0}, 32));
++  EXPECT_EQ(getNZCV(), 0b0010);
++
++  //      S arrangement
++  src = {0x9, 0x0, 0x0, 0x0, 0x6, 0x0, 0x0, 0x0};
++  fillHeap<uint64_t>(heap64, src, 8);
++  RUN_AARCH64(R"(
++        # Get heap address
++        mov x0, 0
++        mov x8, 214
++        svc #0
++
++        ldr p1, [x0]
++        add x0, x0, #32
++        ldr p0, [x0]
++
++        pnext p0.s, p1, p0.s
++  )");
++  CHECK_PREDICATE(0, uint64_t,
++                  fillPredFromSource<uint64_t>({0x1, 0, 0, 0}, 32));
++  EXPECT_EQ(getNZCV(), 0b1010);
++
++  //      D arrangement
++  src = {0x3,  0x0, 0x0, 0x0, 0x1, 0x0, 0x0, 0x0,
++         0xF3, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0};
++  fillHeap<uint64_t>(heap64, src, 12);
++  RUN_AARCH64(R"(
++        # Get heap address
++        mov x0, 0
++        mov x8, 214
++        svc #0
++
++        ldr p2, [x0]
++        add x0, x0, #32
++        ldr p0, [x0]
++
++        pnext p0.d, p2, p0.d
++
++        add x0, x0, #32
++        ldr p3, [x0]
++        add x0, x0, #32
++        ldr p1, [x0]
++
++        pnext p1.d, p3, p1.d
++  )");
++  CHECK_PREDICATE(0, uint64_t, fillPredFromSource<uint64_t>({0, 0, 0, 0}, 32));
++  CHECK_PREDICATE(1, uint64_t,
++                  fillPredFromSource<uint64_t>({0x1, 0, 0, 0}, 32));
++  EXPECT_EQ(getNZCV(), 0b1010);
++}
++
+ TEST_P(InstSve, punpk) {
+   RUN_AARCH64(R"(
+     ptrue p0.b
+@@ -6161,6 +6399,151 @@ TEST_P(InstSve, smulh) {
+              fillNeonCombined<int32_t>({-12}, {-1076902265}, VL / 8));
+ }
+ 
++TEST_P(InstSve, umaxv) {
++  // umaxv vd, vn.t
++  initialHeapData_.resize(32);
++  uint8_t* heap = reinterpret_cast<uint8_t*>(initialHeapData_.data());
++
++  // v0
++  heap[0] = 0x01;
++  heap[1] = 0x00;
++  heap[2] = 0xFF;
++  heap[3] = 0xAA;
++  heap[4] = 0xBB;
++  heap[5] = 0xCC;
++  heap[6] = 0xDD;
++  heap[7] = 0xEE;
++
++  // v1
++  heap[8] = 0x00;
++  heap[9] = 0x00;
++  heap[10] = 0xEE;
++  heap[11] = 0x11;
++  heap[12] = 0x22;
++  heap[13] = 0x33;
++  heap[14] = 0x44;
++  heap[15] = 0x55;
++
++  RUN_AARCH64(R"(
++    # Get heap address
++    mov x0, 0
++    mov x8, 214
++    svc #0
++
++    ldr q0, [x0]
++    ldr q1, [x0, #8]
++    umaxv h2, v0.4h
++    umaxv h3, v1.4h
++
++  )");
++  CHECK_NEON(2, uint16_t,
++             {0xEEDD, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000});
++  CHECK_NEON(3, uint16_t,
++             {0x5544, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000});
++}
++
++TEST_P(InstSve, clastb) {
++  // 64 bit
++  RUN_AARCH64(R"(
++        movz    x0, #0xCDEF
++        movk    x0, #0x89AB, LSL #16
++        movk x0, #0x4567, LSL #32
++        movk x0, #0x0123, LSL #48
++        movz x1, #0x4321
++        movk x1, #0x8765, LSL #16
++        movk x1, #0xCBA9, LSL #32
++        movk x1, #0x1FED, LSL #48
++
++        dup z2.d, x0
++        dup z3.d, x1
++        
++        pfalse p0.b
++        clastb d2, p0, d2, z3.d
++        mov z0.d, z2.d
++
++        ptrue p0.d
++        clastb d2, p0, d2, z3.d
++        mov z1.d, z2.d
++    )");
++  CHECK_NEON(0, uint64_t, fillNeon<uint64_t>({0x0123456789ABCDEF}, 8));
++  CHECK_NEON(1, uint64_t, fillNeon<uint64_t>({0x1FEDCBA987654321}, 8));
++
++  // 32 bit
++  RUN_AARCH64(R"(
++        movz    x0, #0xCDEF
++        movk    x0, #0x89AB, LSL #16
++        movk x0, #0x4567, LSL #32
++        movk x0, #0x0123, LSL #48
++        movz x1, #0x4321
++        movk x1, #0x8765, LSL #16
++        movk x1, #0xCBA9, LSL #32
++        movk x1, #0x1FED, LSL #48
++
++        dup z2.d, x0
++        dup z3.d, x1
++        
++        pfalse p0.b
++        clastb s2, p0, s2, z3.s
++        mov z0.d, z2.d
++
++        ptrue p0.s
++        clastb s2, p0, s2, z3.s
++        mov z1.d, z2.d
++    )");
++  CHECK_NEON(0, uint64_t, fillNeon<uint64_t>({0x89ABCDEF}, 8));
++  CHECK_NEON(1, uint64_t, fillNeon<uint64_t>({0x1FEDCBA9}, 8));
++
++  // 16 bit
++  RUN_AARCH64(R"(
++        movz    x0, #0xCDEF
++        movk    x0, #0x89AB, LSL #16
++        movk x0, #0x4567, LSL #32
++        movk x0, #0x0123, LSL #48
++        movz x1, #0x4321
++        movk x1, #0x8765, LSL #16
++        movk x1, #0xCBA9, LSL #32
++        movk x1, #0x1FED, LSL #48
++
++        dup z2.d, x0
++        dup z3.d, x1
++        
++        pfalse p0.b
++        clastb h2, p0, h2, z3.h
++        mov z0.d, z2.d
++
++        ptrue p0.h
++        clastb h2, p0, h2, z3.h
++        mov z1.d, z2.d
++    )");
++  CHECK_NEON(0, uint64_t, fillNeon<uint64_t>({0xCDEF}, 8));
++  CHECK_NEON(1, uint64_t, fillNeon<uint64_t>({0x1FED}, 8));
++
++  // 8 bit
++  RUN_AARCH64(R"(
++        movz    x0, #0xCDEF
++        movk    x0, #0x89AB, LSL #16
++        movk x0, #0x4567, LSL #32
++        movk x0, #0x0123, LSL #48
++        movz x1, #0x4321
++        movk x1, #0x8765, LSL #16
++        movk x1, #0xCBA9, LSL #32
++        movk x1, #0x1FED, LSL #48
++
++        dup z2.d, x0
++        dup z3.d, x1
++        
++        pfalse p0.b
++        clastb b2, p0, b2, z3.b
++        mov z0.d, z2.d
++
++        ptrue p0.b
++        clastb b2, p0, b2, z3.b
++        mov z1.d, z2.d
++    )");
++  CHECK_NEON(0, uint64_t, fillNeon<uint64_t>({0xEF}, 8));
++  CHECK_NEON(1, uint64_t, fillNeon<uint64_t>({0x1F}, 8));
++}
++
+ TEST_P(InstSve, st1b) {
+   initialHeapData_.resize(VL / 4);
+   uint8_t* heap8 = reinterpret_cast<uint8_t*>(initialHeapData_.data());

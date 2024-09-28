@@ -1,50 +1,27 @@
-import numpy as np
 import pandas as pd
 import os
 from sklearn.model_selection import train_test_split
-from sklearn import svm
 from sklearn import multioutput
 from sklearn import metrics
-from sklearn import linear_model
 import joblib
 from sklearn.model_selection import GridSearchCV
-from sklearn.preprocessing import MinMaxScaler
-from sklearn.preprocessing import RobustScaler
-from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
-import seaborn as sns
-from sklearn.preprocessing import PolynomialFeatures
-import math
 import time
 from sklearn.tree import DecisionTreeRegressor
-import csv
 from sklearn.inspection import permutation_importance
 
 
-#Current workflow:
-
-# - Drop rows with -1s/static variables
-# - Log1p (natural log, +1 to all before hand) - THIS WAS GOOD
-# - MinMaxScaler (works better than Standard or Robust)
-# - Train/Test split 80/20
-# - SVR model, rbf kernel. Parameter tuned roughly by hand
-# - Currently validating using root MSE to give "average" cycles away.
-
-# Issues:
-
-# - Missing lots of "outliers", starting to fit to trends better. Found more data = more outliers which seems good
-# - Artificially bump up less represented groups (ie outliers) in data?
-# - How is best to analyse/discuss? Anything else I need to consider or test?
-
-curdir = "C:/Users/Joseph/Documents/simeng-parameter-study/analysis"
+#Specify the directory of this file
+curdir = "~/path/to/cur/dir"
+#Specify the name of the input data csv file
 data = "aarch64-results.csv"
-#data = "recollect-results.csv"
+
+#If you wish to save your model, enter the name here
 MODEL_SAVE_NAME = "model.pkl"
 
 data_path = os.path.join(curdir, data)
 df = pd.read_csv(data_path)
 print("Original df shape: ", df.shape)
-#df = df[:30000]
 
 config_options = ['Vector-Length','Streaming-Vector-Length','Fetch-Block-Size','Loop-Buffer-Size', \
                   'Loop-Detection-Threshold','Heap-Size','Stack-Size','GeneralPurpose-Count', \
@@ -54,15 +31,8 @@ config_options = ['Vector-Length','Streaming-Vector-Length','Fetch-Block-Size','
                   'clw','core_clock','l1_latency','l1_clock','l1_associativity','l1_size','l2_latency', \
                   'l2_clock','l2_associativity','l2_size','ram_timing','ram_clock','ram_size']
 
-#config_options = ['Vector-Length', 'Commit', 'ROB', 'l1_latency', 'l1_size', 'l2_latency', 'l2_size']
-#config_options = ['Vector-Length', 'l1_latency']
-#config_options = ['Vector-Length', 'ROB', 'l1_latency', 'l1_size', 'l2_latency', 'l2_size', "Load-Bandwidth", "Store-Bandwidth", "clw"]
-#cycle_options = ['minibude_cycles', 'stream_cycles', 'tealeaf_cycles', 'cloverleaf_cycles', 'minisweep_cycles']
+
 cycle_options = ['minibude_cycles', 'stream_cycles', 'tealeaf_cycles', 'minisweep_cycles']
-#cycle_options = ['minibude_cycles']
-#cycle_options = ['stream_cycles']
-#cycle_options = ['stream_ipc']
-#cycle_options = ['cloverleaf_cycles']
 
 def clean_data(df):
     # Drop rows with -1 in cycle values
@@ -71,9 +41,9 @@ def clean_data(df):
         for i in cycle_options:
             if row[i] == -1:
                 dropped_rows.append(index)
-    for index, row in df.iterrows():
-            if row["Vector-Length"] != 2048:
-                dropped_rows.append(index)
+    #for index, row in df.iterrows():
+    #        if row["Vector-Length"] != 128:
+    #            dropped_rows.append(index)
     df.drop(dropped_rows, inplace=True)
 
     # Exclude unchanged values, and update the config list to show this
@@ -124,53 +94,11 @@ def save_sample(num_samples):
     results_df = pd.concat([X_test_df, Y_pred_df, Y_test_df], axis=1)
     results_df.to_csv('test_predictions.csv', index=False)
 
-def single_model():
-    print(Y_train.shape, Y_test.shape)
-    model.fit(X_train, Y_train)
-    return model
-
-def multi_model():
-    multi_output_model = multioutput.MultiOutputRegressor(model, n_jobs=-1)
-    multi_output_model.fit(X_train, Y_train)
-    return multi_output_model
-
-
-def grid_search():
-    param_grid = {
-    'estimator__C': [0.1, 1, 10],
-    #'estimator__epsilon': [0.1, 0.2, 0.5],
-    'estimator__epsilon': [0.2],
-    'estimator__kernel': ['poly', 'rbf'],
-    }
-    multi_output_svm = multioutput.MultiOutputRegressor(model, n_jobs=-1)
-    grid_search = GridSearchCV(multi_output_svm, param_grid, cv=5, scoring='neg_mean_squared_error', n_jobs=-1)
-    grid_search.fit(X_train, Y_train)
-    for mean_score, params in zip(grid_search.cv_results_['mean_test_score'], grid_search.cv_results_['params']):
-        print(f"Mean Score: {mean_score}, Params: {params}")
-    best_svm = grid_search.best_estimator_
-    # Predict on the test set
-    Y_pred = best_svm.predict(X_test)
-
-    # Evaluate the model
-    mse = metrics.mean_squared_error(Y_test, Y_pred, multioutput='raw_values')
-    print("Mean Squared Error for each target:", mse)
-
-def compare_graph(config_option, cycle_option):
-    plt.figure(figsize=(10, 6))
-    #plt.scatter(df_config[config_option], df_cycles[cycle_option], alpha=0.5)
-    plt.scatter(X_test[config_option], Y_test[cycle_option], alpha=0.5)
-    plt.scatter(X_test[config_option], Y_pred[cycle_option], alpha=0.5, color="red")
-    plt.title(config_option + " vs " + cycle_option)
-    plt.xlabel(config_option)
-    plt.ylabel(cycle_option)
-    plt.grid(True)
-
 
 df = clean_data(df)
 total_results = []
 result_cols = ["perc_acc", "one_perc", "two_perc", "five_perc", "ten_perc", "twentyfive_perc"] + config_options
 
-#print("Total no. under 10 mill cycles: ", (df[cycle_options[0]] < 10000000).sum())
 for current_code in cycle_options:
     start_time = time.time()
     print("df shape after data cleaning: ", df.shape)
@@ -184,21 +112,9 @@ for current_code in cycle_options:
 
     X = df_config.values
     Y = df_cycles.values
-    #Y = np.log1p(Y)
-    #poly = PolynomialFeatures(degree=2, include_bias=False)
-    #X_poly = poly.fit_transform(X)
 
     X_scaled = X
     Y_scaled = Y
-    #scaled_X = MinMaxScaler()
-    #scaled_X = RobustScaler()
-    #scaled_X = StandardScaler()
-    #X_scaled = scaled_X.fit_transform(X)
-
-    #scaled_Y = MinMaxScaler()
-    #scaled_Y = RobustScaler()
-    #scaled_Y = StandardScaler()
-    #Y_scaled = scaled_Y.fit_transform(Y)
 
     X_train, X_test, Y_train, Y_test = train_test_split(X_scaled, Y_scaled, test_size=0.2, random_state=42)
 
@@ -206,12 +122,7 @@ for current_code in cycle_options:
     print("Data prep took ", end_time - start_time, "s")
 
     start_time = time.time()
-    #model = svm.SVR(verbose=0, cache_size=32000, kernel='rbf', C=5, epsilon=0.001)
     model = DecisionTreeRegressor(random_state=42)
-    #model = linear_model.Lasso()
-    #model = linear_model.LinearRegression(positive=True)
-    #model = linear_model.Ridge()
-    #C=10, epsilon=0.2
 
 
     LOAD_SAVE = False
@@ -220,16 +131,11 @@ for current_code in cycle_options:
     if (LOAD_SAVE):
         model = load_model(MODEL_SAVE_NAME)
     else:
-        #model = single_model()
         model.fit(X_train, Y_train)
         if (SAVE_MODEL):
             save_model(model)
 
 
-    #model = multi_model()
-    #model = single_model()
-    #grid_search()
-    #mape_scorer = metrics.make_scorer(metrics.mean_absolute_percentage_error)
     mape_scorer = metrics.make_scorer(metrics.mean_absolute_error)
     perm_imp = permutation_importance(model, X_test, Y_test, random_state=42, n_jobs=1, n_repeats=10, scoring=mape_scorer)
 
@@ -241,11 +147,6 @@ for current_code in cycle_options:
 
     Y_pred = model.predict(X_test).reshape(-1, 1)
     print("Predicted Y")
-    #X_test = scaled_X.inverse_transform(X_test)
-    #Y_test = scaled_Y.inverse_transform(Y_test)
-    #Y_pred = scaled_Y.inverse_transform(Y_pred_scaled)
-    #Y_pred = np.expm1(Y_pred)
-    #Y_test = np.expm1(Y_test)
 
     Y_test_df = pd.DataFrame(Y_test, columns=df_cycles.columns)
     Y_pred_df = pd.DataFrame(Y_pred, columns=df_cycles.columns)
@@ -256,29 +157,9 @@ for current_code in cycle_options:
     print("Model training took ", end_time - start_time, "s")
 
 
-    #X_test = pd.DataFrame(X_test, columns=df_config.columns)
-    #Y_test = pd.DataFrame(Y_test, columns=df_cycles.columns)
-    #Y_pred = pd.DataFrame(Y_pred, columns=df_cycles.columns)
-    #for i in config_options:
-    #for i in ["clw"]:
-    #    compare_graph(i, "stream_cycles")
-
-    #boxplot_df = pd.concat([df_config["clw"], df_cycles["stream_cycles"]], axis=1)
-    #sns.boxplot(data=boxplot_df, x="clw", y="stream_cycles")
-
-    plt.show()
-
-    #mse = metrics.mean_squared_error(Y_test, Y_pred)
-    #print("Mean Squared Error for each target:", mse)
-    #target_mse = 100000*100000
-    #print("Target MSE is ", target_mse, " which is average 100k cycles away.")
-    #print("Achieved sqrt MSE is ", math.sqrt(mse), " cycles away" )
-
     results = []
 
-    #test = results_table["minibude_cycles"]
     total_pred = len(Y_pred)
-    limit_perc = 2
     perc_results = []
 
     #Get mean % accuracy
@@ -296,14 +177,9 @@ for current_code in cycle_options:
         results.append((counter/total_pred)*100)
         print(counter, " out of ", total_pred, " predictions were within ", limit_perc, "%. That is ", (counter/total_pred)*100, "%")
 
-    #total_results.append(results)
 
-    #feature_importances = model.feature_importances_
-    #for i in range(len(feature_importances)):
-    #    results.append(feature_importances[i]*100)
     results += perc_imp
-        #print(config_options[i], ": ", feature_importances[i]*100, "%")
-#print(total_results)
+
     total_results.append(results)
 
 results_df = pd.DataFrame(columns=result_cols)
@@ -311,8 +187,7 @@ for i in total_results:
     results_df.loc[len(results_df), :] = i
 results_df.to_csv("model_results.csv", index=False)
 
-#print(results_table)
-
-save_sample(200)
+#Save a sample of some predictions given a config
+#save_sample(200)
 
 

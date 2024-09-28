@@ -1,7 +1,7 @@
 CC = armclang
 MARCH = armv8.4-a+sve
 CFLAGS = -O3 -fopenmp -march=$(MARCH) --static -msve-vector-bits=scalable
-STREAMFLAGS = -DSTREAM_ARRAY_SIZE=1000000
+STREAMFLAGS = -DSTREAM_ARRAY_SIZE=200000
 
 all: stream_c.exe
 

@@ -4,7 +4,6 @@ import pandas as pd
 import dispatch_simeng
 import yaml
 
-#BATCH_SIZE = int(sys.argv[1])
 RUN_INDEX = int(sys.argv[1])
 PATH = dispatch_simeng.PATH
 DB_NAME = os.path.join(PATH, sys.argv[2])
@@ -112,26 +111,6 @@ def get_results(index, benchmark):
 columns = ["Config-no"]
 data = [[CONFIG_NO]]
 
-#for i in range(BATCH_SIZE):
-#    parameters = get_inputs(i)
-#    if (i == 0):
-#        for j in parameters:
-#            columns.append(j)
-#
-#    temp_data = []
-#    for j in parameters:
-#        temp_data.append(parameters[j])
-#
-#    for benchmark in dispatch_simeng.BENCHMARKS:
-#        results = get_results(i, benchmark)
-#        for j in results:
-#            temp_data.append(results[j])
-#            if (i == 0):
-#                columns.append(j)
-#
-#
-#data.append(temp_data)
-
 
 parameters = get_inputs(RUN_INDEX)
 for j in parameters:
@@ -152,6 +131,3 @@ df = pd.DataFrame(data, columns=columns)
 
 #print(df)
 df.to_csv(DB_NAME, mode='a', index=False, header=not os.path.isfile(DB_NAME))
-
-    #print(parameters)
-    #print(results)

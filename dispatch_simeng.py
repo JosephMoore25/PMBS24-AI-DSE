@@ -10,10 +10,12 @@ import yaml
 
 USING_SST = True
 
-PATH = "/home/br-jmoore/simeng-parameter-study"
-#PATH = "C:/Users/Joseph/Documents/simeng-parameter-study/analysis"
-BENCHMARK_PATH_BASE="/home/br-jmoore/benchmarks/benchmark-binaries/aarch64/armclang-23/"
-DATA_PATH_BASE = "/home/br-jmoore/benchmarks/benchmark-binaries/data"
+#PATH TO THE BASE DIR
+PATH = "~/path/to/base/dir"
+#PATH TO BENCHMARK BASE DIR
+BENCHMARK_PATH_BASE="~/path/to/benchmark/dir"
+#PATH TO BENCHMARK INPUT FILES BASE DIR
+DATA_PATH_BASE = "~/path/to/input/files"
 HOME = os.path.expanduser("~")
 
 minibude_binary_path = os.path.join(BENCHMARK_PATH_BASE, "minibude/minibude-omp_armclang23_armv8.4-a+sve")
@@ -21,21 +23,17 @@ minibude_data_path = os.path.join(DATA_PATH_BASE, "minibude/bm1/")
 
 stream_binary_path = os.path.join(BENCHMARK_PATH_BASE, "stream/stream-200k_armclang23_armv8.4-a+sve")
 
-cloverleaf_binary_path = os.path.join(BENCHMARK_PATH_BASE, "cloverleaf/cloverleaf-omp-armclang23-armv8.4-a+sve")
-cloverleaf_data_path = os.path.join(DATA_PATH_BASE, "cloverleaf/clover.in")
-
 tealeaf_binary_path = os.path.join(BENCHMARK_PATH_BASE, "tealeaf/TeaLeaf-armclang23-armv8.4+sve")
 
 minisweep_binary_path = os.path.join(BENCHMARK_PATH_BASE, "minisweep/minisweep-omp-armclang23-armv8.4-a+sve")
 
 BENCHMARKS = {
-    #"minibude" : [minibude_binary_path, "-n", "64", "-i", "1", "--deck", minibude_data_path],
+    "minibude" : [minibude_binary_path, "-n", "64", "-i", "1", "--deck", minibude_data_path],
     "stream" : [stream_binary_path, "a"],
-    "cloverleaf": [cloverleaf_binary_path, cloverleaf_data_path],
-    #"tealeaf": [tealeaf_binary_path, "a"],
-    #"minisweep": [minisweep_binary_path, "--ncell_x", "4", "--ncell_y", "4", "--ncell_z", \
-    #                "4", "--ne", "1", "--na", "32", "--niterations", "1", "--nblock_z", \
-    #                "1", "--nthread_e", "1"]
+    "tealeaf": [tealeaf_binary_path, "a"],
+    "minisweep": [minisweep_binary_path, "--ncell_x", "4", "--ncell_y", "4", "--ncell_z", \
+                    "4", "--ne", "1", "--na", "32", "--niterations", "1", "--nblock_z", \
+                    "1", "--nthread_e", "1"]
 }
 
 # Function to check memory usage of a given PID
@@ -89,6 +87,7 @@ def dispatch_batch(sst_params):
         else:
             #print(sst_params)
             #sst_params = generator.gen_sst()
+            # Janky code as subprocess arg parsing is really hard to use to specify ordering
             model_options = " ".join([
                 "--simeng_config", config_dest,
             "--bin_path", BENCHMARKS[i][0],
@@ -112,12 +111,10 @@ def dispatch_batch(sst_params):
 
             model_options = shlex.split(model_options)
 
-            #process = subprocess.Popen(["sst", "sst-config.py", 
-            #"--model-options", model_options], stdout=f)
             process = subprocess.Popen(model_options, stdout=f)
 
         while process.poll() is None:
-            #Give 4GB headroom per simeng
+            #Give 16GB headroom per simeng. Overkill, but just to be safe...
             if check_memory(process.pid, 16*1024*1024):
                 os.kill(process.pid, signal.SIGKILL)
                 print(f"Killed process {process.pid} due to memory leak")
@@ -132,7 +129,6 @@ if __name__ == "__main__":
     try:
         BATCH_ID = int(sys.argv[1])
         INDEX_ID = int(sys.argv[2])
-        #print("Batch ID = " + str(BATCH_ID))
     except:
         print("Invalid argument: supply the index within the batch as an int")
         exit()

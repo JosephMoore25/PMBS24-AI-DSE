@@ -225,8 +225,8 @@ def gen_random_config():
       "Loop-Buffer-Size" : random.choice([i for i in range(1, 512+1)]),
       "Loop-Detection-Threshold" : random.choice([i for i in range(1, 32+1)]),
   #Process Image
-      "Heap-Size" : 1073741824, #random.choice([i for i in range(1024*1024, 2*1024*1024*1024, 32*1024*1024)]), #1MB - 2GB in 32MB steps
-      "Stack-Size" : 1048576, #random.choice([i for i in range(32*1024, 32*1024*1024, 32*1024)]), #32KB - 32MB in 32KB steps
+      "Heap-Size" : 1073741824,
+      "Stack-Size" : 1048576,
   #Register Set
       "GeneralPurpose-Count" : random.choice([38, 39] + [i for i in range(40, 512+1, 8)]), # 38 - 512
       "FloatingPoint/SVE-Count" : random.choice([38, 39] + [i for i in range(40, 512+1, 8)]), # 38 - 512
@@ -273,9 +273,6 @@ def gen_sst(original_parameters):
     "ram_clock" : random.choice([i/2 for i in range(2, 10)]),
     "ram_size" : 8
   }
-  #NOT NEEDED GIVEN L1 SIZE INCREASE
-  #while ((parameters["l1_size"]*1024) / parameters["clw"] < parameters["l1_associativity"]):
-  #  parameters["l1_associativity"] = random.choice([2**i for i in range(0, 5)])
   while (parameters["l2_size"] < parameters["l1_size"]):
     parameters["l2_size"] = random.choice([2**i for i in range(5, 17)])
   while (parameters["l2_latency"] <= parameters["l1_latency"]):
@@ -284,8 +281,8 @@ def gen_sst(original_parameters):
   return parameters
 
 def read_parameters(index):
-  curdir = "/home/br-jmoore/simeng-parameter-study"
-  #curdir = "C:/Users/Joseph/Documents/simeng-parameter-study/analysis"
+  #ENTER PATH TO CUR DIRECTORY WHERE THIS FILE IS
+  curdir = "~/path/to/cur/dir"
   data = "aarch64-results.csv"
   data_path = os.path.join(curdir, data)
   df = pd.read_csv(data_path, skiprows = lambda x: x not in [0, index], nrows=2)
@@ -300,8 +297,8 @@ def read_parameters(index):
       "Loop-Buffer-Size" : df.loc[0,'Loop-Buffer-Size'],
       "Loop-Detection-Threshold" : df.loc[0,'Loop-Detection-Threshold'],
   #Process Image
-      "Heap-Size" : 1073741824, #random.choice([i for i in range(1024*1024, 2*1024*1024*1024, 32*1024*1024)]), #1MB - 2GB in 32MB steps
-      "Stack-Size" : 1048576, #random.choice([i for i in range(32*1024, 32*1024*1024, 32*1024)]), #32KB - 32MB in 32KB steps
+      "Heap-Size" : 1073741824,
+      "Stack-Size" : 1048576,
   #Register Set
       "GeneralPurpose-Count" : df.loc[0,'GeneralPurpose-Count'],
       "FloatingPoint/SVE-Count" : df.loc[0,'FloatingPoint/SVE-Count'],
